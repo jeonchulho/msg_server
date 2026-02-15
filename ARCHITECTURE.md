@@ -206,3 +206,64 @@ flowchart TB
 - chat, session, fileman에는 DBMAN_ENDPOINTS를 Service DNS 또는 내부 LB로 주입
 - ConfigMap에는 비민감 변수, Secret에는 JWT/접속키를 분리 저장
 - HPA 기준은 CPU + 지연시간/요청량 지표를 함께 사용
+
+## 멀티테넌트 인프라 분기(Shared vs Dedicated)
+
+```mermaid
+flowchart TB
+    subgraph Clients
+      U1[Tenant A Users]
+      U2[Tenant B Users]
+      U3[Tenant X Users]
+    end
+
+    U1 --> LB[Ingress / Load Balancer]
+    U2 --> LB
+    U3 --> LB
+
+    LB --> CHAT1[chat-1]
+    LB --> CHAT2[chat-2]
+
+    subgraph Shared Infra
+      RSH[(Shared Redis)]
+      MQSH[(Shared LavinMQ)]
+      DBSH[(Shared PostgreSQL)]
+    end
+
+    subgraph Dedicated Infra for Tenant X
+      RX[(Redis X)]
+      MQX[(LavinMQ X)]
+      DBX[(PostgreSQL X)]
+    end
+
+    CHAT1 -->|tenant A/B realtime channel| RSH
+    CHAT2 -->|tenant A/B realtime channel| RSH
+
+    CHAT1 -->|tenant X realtime channel| RX
+    CHAT2 -->|tenant X realtime channel| RX
+
+    CHAT1 --> DBMAN[dbman]
+    CHAT2 --> DBMAN
+
+    DBMAN -->|tenant A/B queries| DBSH
+    DBMAN -->|tenant X queries| DBX
+
+    CHAT1 -->|tenant A/B event publish| MQSH
+    CHAT2 -->|tenant A/B event publish| MQSH
+
+    CHAT1 -->|tenant X event publish| MQX
+    CHAT2 -->|tenant X event publish| MQX
+
+    MQSH --> C1[Shared Consumers]
+    MQX --> C2[Tenant X Consumers]
+
+    RSH -. channel: tenant:{id}:room:{id} .- CHAT1
+    MQSH -. routing key: tenantA.message.created .- CHAT1
+    MQX -. routing key: tenantX.message.created .- CHAT2
+```
+
+### 분기 원칙
+
+- Shared tenant는 공용 Redis/MQ/DB를 사용하고 tenant 식별자 기반으로 논리 분리
+- Dedicated tenant는 tenant 메타 설정에 따라 전용 Redis/MQ/DB로 라우팅
+- 실시간(WS)은 Redis 채널 분리, 비동기 이벤트는 MQ routing key 분리
