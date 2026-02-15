@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 
+	"msg_server/server/chat/domain"
 	"msg_server/server/common/infra/cache"
 )
 
@@ -26,6 +28,7 @@ type wsEnvelope struct {
 
 type RealtimeService struct {
 	tenantRedisRouter *cache.TenantRedisRouter
+	chat              *ChatService
 	mu                sync.RWMutex
 	rooms             map[string]*roomState
 }
@@ -35,9 +38,10 @@ type roomState struct {
 	cancel context.CancelFunc
 }
 
-func NewRealtimeService(tenantRedisRouter *cache.TenantRedisRouter) *RealtimeService {
+func NewRealtimeService(tenantRedisRouter *cache.TenantRedisRouter, chat *ChatService) *RealtimeService {
 	return &RealtimeService{
 		tenantRedisRouter: tenantRedisRouter,
+		chat:              chat,
 		rooms:             map[string]*roomState{},
 	}
 }
@@ -97,12 +101,62 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 		if authUserID != "" {
 			env.UserID = authUserID
 		}
+		if env.Type == "message" {
+			if strings.TrimSpace(env.UserID) == "" {
+				writeWSError(conn, "unauthorized")
+				continue
+			}
+			parsed, err := parseWSMessagePayload(env.Payload)
+			if err != nil {
+				writeWSError(conn, err.Error())
+				continue
+			}
+			created, err := s.chat.CreateMessage(ctx, domain.Message{
+				TenantID: tenantID,
+				RoomID:   roomID,
+				SenderID: env.UserID,
+				Body:     parsed.Body,
+				MetaJSON: BuildMessageMeta(parsed.FileID, parsed.Emojis),
+			})
+			if err != nil {
+				writeWSError(conn, "failed to persist message")
+				continue
+			}
+			env.Payload = created
+		}
 		if env.Type == "webrtc_offer" || env.Type == "webrtc_answer" || env.Type == "webrtc_ice" {
 			env.Type = "signal_" + env.Type
 		}
 		b, _ := json.Marshal(env)
 		_ = redisClient.Publish(ctx, channel, b).Err()
 	}
+}
+
+type wsMessagePayload struct {
+	Body   string   `json:"body"`
+	FileID *string  `json:"file_id"`
+	Emojis []string `json:"emojis"`
+}
+
+func parseWSMessagePayload(payload any) (wsMessagePayload, error) {
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return wsMessagePayload{}, errors.New("invalid message payload")
+	}
+	var out wsMessagePayload
+	if err := json.Unmarshal(b, &out); err != nil {
+		return wsMessagePayload{}, errors.New("invalid message payload")
+	}
+	if strings.TrimSpace(out.Body) == "" {
+		return wsMessagePayload{}, errors.New("body required")
+	}
+	return out, nil
+}
+
+func writeWSError(conn *websocket.Conn, message string) {
+	b, _ := json.Marshal(gin.H{"type": "error", "error": message})
+	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.WriteMessage(websocket.TextMessage, b)
 }
 
 func (s *RealtimeService) consumeRedis(ctx context.Context, roomKey, channel string, redisClient *redis.Client) {

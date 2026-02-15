@@ -339,10 +339,62 @@ curl -X POST http://localhost:8080/api/v1/files/presign-download \
 	- `POST /files/register`
 
 WebSocket:
-- `GET /ws?room_id={id}&tenant_id={tenant_id}` (`tenant_id` 미지정 시 `default`)
+- `GET /ws?room_id={id}&access_token={jwt}`
+	- 또는 `Authorization: Bearer <jwt>` 헤더 사용 가능
+	- 서버에서 토큰 검증 + 방 멤버십 검증 후 연결 허용
+	- `type=message` 이벤트는 WS 수신 시 DB에 즉시 저장 후 fan-out
 - 클라이언트 JSON 메시지 타입 예:
-	- 일반 채팅 이벤트: `{ "type": "message", "payload": {...} }`
+	- 일반 채팅 이벤트: `{ "type": "message", "payload": {"body":"...","file_id":null,"emojis":[]} }`
 	- WebRTC 시그널: `webrtc_offer`, `webrtc_answer`, `webrtc_ice`
+
+브라우저 최소 예제(로그인 → 방 생성 → WS 전송):
+
+```javascript
+const baseUrl = "http://localhost:8080";
+
+// 1) 로그인
+const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
+	method: "POST",
+	headers: { "Content-Type": "application/json" },
+	body: JSON.stringify({
+		tenant_id: "default",
+		email: "admin@example.com",
+		password: "pass1234",
+	}),
+});
+const { access_token } = await loginRes.json();
+
+// 2) 방 생성
+const roomRes = await fetch(`${baseUrl}/api/v1/rooms`, {
+	method: "POST",
+	headers: {
+		"Content-Type": "application/json",
+		Authorization: `Bearer ${access_token}`,
+	},
+	body: JSON.stringify({
+		name: "ws-demo-room",
+		room_type: "group",
+		member_ids: [],
+	}),
+});
+const { id: roomId } = await roomRes.json();
+
+// 3) WS 연결 (브라우저에선 쿼리 토큰 방식이 간단)
+const wsUrl = `ws://localhost:8080/ws?room_id=${encodeURIComponent(roomId)}&access_token=${encodeURIComponent(access_token)}`;
+const ws = new WebSocket(wsUrl);
+
+ws.onopen = () => {
+	// 4) 실시간 이벤트 전송 (DB 저장 + Redis fan-out)
+	ws.send(JSON.stringify({
+		type: "message",
+		payload: { body: "hello realtime", emojis: [] },
+	}));
+};
+
+ws.onmessage = (evt) => {
+	console.log("ws message:", evt.data);
+};
+```
 
 Postman 컬렉션:
 - 컬렉션: `postman/msg_server.postman_collection.json`

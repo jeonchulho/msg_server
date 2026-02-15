@@ -56,7 +56,7 @@ func NewServer(cfg Config) (*Server, error) {
 	dbClient := service.NewDBManClient(cfg.DBManEndpoints...)
 	vectorClient := service.NewVectormanClient(cfg.VectormanEndpoint, cfg.MilvusEnabled)
 	chatSvc := service.NewChatService(tenantMQPublisher, dbClient, vectorClient)
-	wsSvc := service.NewRealtimeService(tenantRedisRouter)
+	wsSvc := service.NewRealtimeService(tenantRedisRouter, chatSvc)
 
 	h := api.NewHandler(chatSvc, wsSvc, cfg.JWTSecret, cfg.JWTTTLMinutes)
 	r := gin.Default()
