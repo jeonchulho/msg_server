@@ -1,0 +1,7 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_redis_addr TEXT NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_lavinmq_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_minio_endpoint TEXT NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_minio_access_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_minio_secret_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_minio_bucket TEXT NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dedicated_minio_use_ssl BOOLEAN NOT NULL DEFAULT false;

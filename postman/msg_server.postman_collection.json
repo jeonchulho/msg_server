@@ -1,0 +1,722 @@
+{
+  "info": {
+    "_postman_id": "9f1a47d1-2b7d-4fd9-8bde-9e3b6c1a2f73",
+    "name": "msg_server API",
+    "description": "msg_server REST API collection (JWT + pagination + files + aliases)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "tenantId", "value": "default" },
+    { "key": "newTenantId", "value": "tenant-demo" },
+    { "key": "email", "value": "admin@example.com" },
+    { "key": "password", "value": "pass1234" },
+    { "key": "userId", "value": "1" },
+    { "key": "roomId", "value": "1" },
+    { "key": "messageId", "value": "1" },
+    { "key": "objectKey", "value": "rooms/1/image.png" },
+    { "key": "cursor", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/v1/auth/login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.access_token) {",
+                  "  pm.collectionVariables.set('token', data.access_token);",
+                  "}",
+                  "if (data.user_id) {",
+                  "  pm.collectionVariables.set('userId', String(data.user_id));",
+                  "}",
+                  "if (data.tenant_id) {",
+                  "  pm.collectionVariables.set('tenantId', String(data.tenant_id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/auth/login (invalid credentials)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('returns invalid credentials error', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.eql('invalid credentials');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"wrong-password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/tenants (missing bearer token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('returns bearer token required error', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.eql('bearer token is required');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "POST /api/v1/users",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"org_id\": \"<org_id>\",\n  \"email\": \"new.user@example.com\",\n  \"password\": \"pass1234\",\n  \"name\": \"New User\",\n  \"title\": \"Engineer\",\n  \"role\": \"user\",\n  \"status\": \"online\",\n  \"status_note\": \"available\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/users/:id/status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"online\",\n  \"note\": \"on call\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "{{userId}}", "status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/users/search",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/search?q=admin&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "search"],
+              "query": [
+                { "key": "q", "value": "admin" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/users/me/aliases",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/aliases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me", "aliases"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/users/me/aliases",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alias\": \"chul\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/aliases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me", "aliases"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/users/me/aliases",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alias\": \"chul\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/aliases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me", "aliases"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/users/me/aliases/audit",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/aliases/audit?limit=50&action=add&cursor={{cursor}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me", "aliases", "audit"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "action", "value": "add" },
+                { "key": "cursor", "value": "{{cursor}}" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "GET /api/v1/tenants",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/tenants",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{newTenantId}}\",\n  \"name\": \"Tenant Demo\",\n  \"deployment_mode\": \"shared\",\n  \"dedicated_dsn\": \"\",\n  \"user_count_threshold\": 200,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/tenants/:id",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tenant Demo Updated\",\n  \"deployment_mode\": \"dedicated\",\n  \"dedicated_dsn\": \"postgres://msg:msg@localhost:5432/msg?sslmode=disable\",\n  \"user_count_threshold\": 200,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{newTenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants", "{{newTenantId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "POST /api/v1/rooms",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"backend-team\",\n  \"room_type\": \"group\",\n  \"member_ids\": [2, 3]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/rooms",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms?limit=50&cursor={{cursor}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "cursor", "value": "{{cursor}}" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/rooms/:id/members",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "members"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "POST /api/v1/rooms/:id/messages",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"hello\",\n  \"file_id\": null,\n  \"emojis\": [\"😀\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "messages"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/rooms/:id/messages",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/messages?limit=50&cursor={{cursor}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "messages"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "cursor", "value": "{{cursor}}" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/messages/search",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/messages/search?q=hello&room_id={{roomId}}&limit=30&cursor={{cursor}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "messages", "search"],
+              "query": [
+                { "key": "q", "value": "hello" },
+                { "key": "room_id", "value": "{{roomId}}" },
+                { "key": "limit", "value": "30" },
+                { "key": "cursor", "value": "{{cursor}}" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/rooms/:id/unread-count",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/unread-count",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "unread-count"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/rooms/unread-counts",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/unread-counts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "unread-counts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/rooms/:id/read",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_id\": {{messageId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "read"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/rooms/:id/read",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "read"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/rooms/:id/messages/:messageId/readers",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/{{roomId}}/messages/{{messageId}}/readers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rooms", "{{roomId}}", "messages", "{{messageId}}", "readers"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "item": [
+        {
+          "name": "POST /api/v1/files/presign-upload",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object_key\": \"{{objectKey}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/files/presign-upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "files", "presign-upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/files/presign-download",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object_key\": \"{{objectKey}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/files/presign-download",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "files", "presign-download"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/files/register",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{token}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_id\": {{roomId}},\n  \"object_key\": \"{{objectKey}}\",\n  \"content_type\": \"image/png\",\n  \"size_bytes\": 1024,\n  \"original_name\": \"image.png\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/files/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "files", "register"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

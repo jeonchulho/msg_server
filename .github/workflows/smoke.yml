@@ -1,0 +1,266 @@
+name: smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: Tenant ID for seed/login smoke (e.g. default, tenant-demo)
+        required: false
+        default: default
+      admin_email:
+        description: Admin email for seed/login smoke (e.g. admin@example.com)
+        required: false
+        default: admin@example.com
+      base_url:
+        description: Smoke target base URL (e.g. http://localhost:8080)
+        required: false
+        default: http://localhost:8080
+      run_dbman_failover_smoke:
+        description: Run optional dbman failover smoke job
+        required: false
+        default: "false"
+        type: boolean
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client curl
+
+      - name: Start infra
+        run: docker compose up -d postgres redis lavinmq minio
+
+      - name: Wait for infra health
+        run: |
+          for i in {1..60}; do
+            pg=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-postgres 2>/dev/null || true)
+            rd=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-redis 2>/dev/null || true)
+            mq=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-lavinmq 2>/dev/null || true)
+            mi=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-minio 2>/dev/null || true)
+            echo "postgres=$pg redis=$rd lavinmq=$mq minio=$mi"
+            if [[ "$pg" == "healthy" && "$rd" == "healthy" && "$mq" == "healthy" && "$mi" == "healthy" ]]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "infra not healthy in time" >&2
+          docker compose ps
+          exit 1
+
+      - name: Run migrations
+        env:
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+        run: make migrate
+
+      - name: Report smoke password source
+        env:
+          SECRET_PW: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: |
+          if [[ -z "$SECRET_PW" ]]; then
+            echo "::error::smoke workflow requires repository secret SMOKE_ADMIN_PASSWORD."
+            exit 1
+          fi
+
+          echo "Using smoke password source: secret(SMOKE_ADMIN_PASSWORD)"
+
+      - name: Seed admin user
+        env:
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+          TENANT_ID: ${{ github.event.inputs.tenant_id || 'default' }}
+          ADMIN_EMAIL: ${{ github.event.inputs.admin_email || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+          ADMIN_NAME: Admin
+          ADMIN_TITLE: Administrator
+        run: bash ./scripts/seed_admin.sh
+
+      - name: Start API server
+        env:
+          APP_ENV: ci
+          PORT: 8080
+          JWT_SECRET: change-me-in-production
+          JWT_TTL_MINUTES: 1440
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+          REDIS_ADDR: localhost:6379
+          LAVINMQ_URL: amqp://guest:guest@localhost:5672/
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: minio
+          MINIO_SECRET_KEY: minio123
+          MINIO_BUCKET: chat-files
+          MINIO_USE_SSL: "false"
+          MILVUS_ENABLED: "false"
+          MILVUS_ENDPOINT: http://localhost:9091
+        run: |
+          nohup go run ./cmd/chat > /tmp/msg_server.log 2>&1 &
+          echo $! > /tmp/msg_server.pid
+
+      - name: Wait for API health
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /tmp/health.json -w "%{http_code}" "${{ github.event.inputs.base_url || 'http://localhost:8080' }}/health" || true)
+            if [[ "$code" == "200" ]]; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "api not ready in time" >&2
+          cat /tmp/msg_server.log || true
+          exit 1
+
+      - name: Run smoke tests
+        env:
+          SMOKE_BASE_URL: ${{ github.event.inputs.base_url || 'http://localhost:8080' }}
+          SMOKE_TENANT_ID: ${{ github.event.inputs.tenant_id || 'default' }}
+          SMOKE_EMAIL: ${{ github.event.inputs.admin_email || 'admin@example.com' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: |
+          echo "::group::Smoke section: happy-path"
+          echo "- GET /health"
+          echo "- POST /api/v1/auth/login"
+          echo "- GET /api/v1/tenants"
+          echo "::endgroup::"
+
+          echo "::group::Smoke section: error-contract"
+          echo "- POST /api/v1/auth/login (invalid credentials)"
+          echo "- GET /api/v1/tenants (missing bearer token)"
+          echo "::endgroup::"
+
+          make smoke
+
+      - name: Debug tenant endpoint on smoke failure
+        if: failure()
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'http://localhost:8080' }}
+          SMOKE_TENANT_ID: ${{ github.event.inputs.tenant_id || 'default' }}
+          SMOKE_EMAIL: ${{ github.event.inputs.admin_email || 'admin@example.com' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/ci_login.json -w "%{http_code}" -X POST "$BASE_URL/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "{\"tenant_id\":\"$SMOKE_TENANT_ID\",\"email\":\"$SMOKE_EMAIL\",\"password\":\"$SMOKE_PASSWORD\"}" || true)
+          echo "debug login status=$code"
+          cat /tmp/ci_login.json || true
+
+          token=$(grep -o '"access_token":"[^"]*"' /tmp/ci_login.json | head -n1 | cut -d '"' -f4 || true)
+          if [[ -z "$token" ]]; then
+            echo "token parse failed; skip tenants call"
+            exit 0
+          fi
+
+          tcode=$(curl -s -o /tmp/ci_tenants.json -w "%{http_code}" -X GET "$BASE_URL/api/v1/tenants" \
+            -H "Authorization: Bearer $token" || true)
+          echo "debug tenants status=$tcode"
+          cat /tmp/ci_tenants.json || true
+
+      - name: Print API log on failure
+        if: failure()
+        run: cat /tmp/msg_server.log || true
+
+      - name: Teardown
+        if: always()
+        run: |
+          if [[ -f /tmp/msg_server.pid ]]; then
+            kill "$(cat /tmp/msg_server.pid)" || true
+          fi
+          docker compose down -v
+
+  dbman-failover-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_dbman_failover_smoke == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client curl
+
+      - name: Start infra
+        run: docker compose up -d postgres
+
+      - name: Wait for postgres health
+        run: |
+          for i in {1..60}; do
+            pg=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-postgres 2>/dev/null || true)
+            echo "postgres=$pg"
+            if [[ "$pg" == "healthy" ]]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "postgres not healthy in time" >&2
+          docker compose ps
+          exit 1
+
+      - name: Run migrations
+        env:
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+        run: make migrate
+
+      - name: Start dbman server
+        env:
+          DBMAN_PORT: 8082
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+        run: |
+          nohup go run ./cmd/dbman > /tmp/dbman.log 2>&1 &
+          echo $! > /tmp/dbman.pid
+
+      - name: Wait for dbman readiness
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /tmp/dbman_health.json -w "%{http_code}" "http://localhost:8082/health/ready" || true)
+            if [[ "$code" == "200" ]]; then
+              cat /tmp/dbman_health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "dbman not ready in time" >&2
+          cat /tmp/dbman.log || true
+          exit 1
+
+      - name: Run dbman failover smoke
+        env:
+          GOOD_DBMAN_ENDPOINT: http://localhost:8082
+          BAD_DBMAN_ENDPOINT: http://127.0.0.1:65535
+          DBMAN_HTTP_TIMEOUT_MS: "1500"
+          DBMAN_FAIL_THRESHOLD: "1"
+          DBMAN_COOLDOWN_MS: "3000"
+        run: make dbman-failover-smoke
+
+      - name: Print dbman log on failure
+        if: failure()
+        run: cat /tmp/dbman.log || true
+
+      - name: Teardown
+        if: always()
+        run: |
+          if [[ -f /tmp/dbman.pid ]]; then
+            kill "$(cat /tmp/dbman.pid)" || true
+          fi
+          docker compose down -v

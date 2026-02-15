@@ -1,0 +1,189 @@
+{
+  "info": {
+    "_postman_id": "f84a5e59-87be-4db2-8a0f-0a87f7de4f38",
+    "name": "msg_server smoke",
+    "description": "Minimal smoke checks: health + login",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "tenantId", "value": "default" },
+    { "key": "email", "value": "admin@example.com" },
+    { "key": "password", "value": "pass1234" }
+  ],
+  "item": [
+    {
+      "name": "GET /health",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('health status is ok', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "POST /api/v1/auth/login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('returns token payload', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body).to.have.property('access_token');",
+              "  pm.expect(body).to.have.property('user_id');",
+              "  pm.expect(body).to.have.property('tenant_id');",
+              "  pm.expect(body).to.have.property('role');",
+              "  pm.collectionVariables.set('token', body.access_token);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "POST /api/v1/auth/login (invalid credentials)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 401', function () {",
+              "  pm.response.to.have.status(401);",
+              "});",
+              "pm.test('returns invalid credentials error', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.error).to.eql('invalid credentials');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"wrong-password\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "GET /api/v1/tenants",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('returns tenant list', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "GET /api/v1/tenants (missing bearer token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 401', function () {",
+              "  pm.response.to.have.status(401);",
+              "});",
+              "pm.test('returns bearer token required error', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.error).to.eql('bearer token is required');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "tenants"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
