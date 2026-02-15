@@ -31,6 +31,10 @@ func (s *ChatService) AddMember(ctx context.Context, tenantID, roomID, userID st
 	return s.dbman.AddMember(ctx, tenantID, roomID, userID)
 }
 
+func (s *ChatService) IsRoomMember(ctx context.Context, tenantID, roomID, userID string) (bool, error) {
+	return s.dbman.IsRoomMember(ctx, tenantID, roomID, userID)
+}
+
 func (s *ChatService) CreateMessage(ctx context.Context, msg domain.Message) (domain.Message, error) {
 	if msg.MetaJSON == "" {
 		msg.MetaJSON = "{}"

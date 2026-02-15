@@ -75,6 +75,7 @@ func (h *Handler) registerDBRoutes(api *gin.RouterGroup) {
 	api.GET("/files/search", h.searchFilesByRoom)
 	api.POST("/rooms", h.createRoom)
 	api.POST("/rooms/members", h.addMember)
+	api.POST("/rooms/members/check", h.checkRoomMember)
 	api.POST("/messages", h.createMessage)
 	api.POST("/messages/read", h.markReadUpTo)
 	api.POST("/messages/list", h.listMessages)
@@ -548,6 +549,24 @@ func (h *Handler) addMember(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) checkRoomMember(c *gin.Context) {
+	var req struct {
+		TenantID string `json:"tenant_id" binding:"required"`
+		RoomID   string `json:"room_id" binding:"required"`
+		UserID   string `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ok, err := h.chatSvc.IsRoomMember(c.Request.Context(), req.TenantID, req.RoomID, req.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": ok})
 }
 
 func (h *Handler) createMessage(c *gin.Context) {

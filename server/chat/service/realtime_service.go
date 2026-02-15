@@ -46,8 +46,19 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { retu
 
 func (s *RealtimeService) HandleWS(c *gin.Context) {
 	tenantID := strings.TrimSpace(c.Query("tenant_id"))
+	if rawTenantID, ok := c.Get("auth_tenant_id"); ok {
+		if authTenantID, ok := rawTenantID.(string); ok && strings.TrimSpace(authTenantID) != "" {
+			tenantID = strings.TrimSpace(authTenantID)
+		}
+	}
 	if tenantID == "" {
 		tenantID = "default"
+	}
+	authUserID := ""
+	if rawUserID, ok := c.Get("auth_user_id"); ok {
+		if userID, ok := rawUserID.(string); ok {
+			authUserID = strings.TrimSpace(userID)
+		}
 	}
 	roomID := parseInt64(c.Query("room_id"))
 	if strings.TrimSpace(roomID) == "" {
@@ -83,6 +94,9 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 			continue
 		}
 		env.RoomID = roomID
+		if authUserID != "" {
+			env.UserID = authUserID
+		}
 		if env.Type == "webrtc_offer" || env.Type == "webrtc_answer" || env.Type == "webrtc_ice" {
 			env.Type = "signal_" + env.Type
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -26,7 +27,7 @@ func NewHandler(chat *service.ChatService, ws *service.RealtimeService, jwtSecre
 
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, NewHealthResponse("ok")) })
-	r.GET("/ws", h.ws.HandleWS)
+	r.GET("/ws", h.handleWS)
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthRequired(h.auth))
@@ -44,6 +45,55 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		api.GET("/messages/search", h.searchMessages)
 
 	}
+}
+
+func (h *Handler) handleWS(c *gin.Context) {
+	token, ok := wsAccessToken(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, NewErrorResponse("bearer token is required"))
+		return
+	}
+	userID, tenantID, _, err := h.auth.ParseAuthContext(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewErrorResponse("invalid token"))
+		return
+	}
+	roomID := strings.TrimSpace(c.Query("room_id"))
+	if roomID == "" {
+		c.JSON(http.StatusBadRequest, NewErrorResponse("room_id required"))
+		return
+	}
+	isMember, err := h.chat.IsRoomMember(c.Request.Context(), tenantID, roomID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))
+		return
+	}
+	if !isMember {
+		c.JSON(http.StatusForbidden, NewErrorResponse("room access denied"))
+		return
+	}
+	c.Set("auth_access_token", token)
+	c.Set("auth_user_id", userID)
+	c.Set("auth_tenant_id", tenantID)
+	h.ws.HandleWS(c)
+}
+
+func wsAccessToken(c *gin.Context) (string, bool) {
+	header := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(header, "Bearer ") {
+		token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+		if token != "" {
+			return token, true
+		}
+	}
+	token := strings.TrimSpace(c.Query("access_token"))
+	if token == "" {
+		token = strings.TrimSpace(c.Query("token"))
+	}
+	if token == "" {
+		return "", false
+	}
+	return token, true
 }
 
 func (h *Handler) createRoom(c *gin.Context) {

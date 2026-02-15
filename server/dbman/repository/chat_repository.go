@@ -58,6 +58,25 @@ func (r *ChatRepository) AddMember(ctx context.Context, tenantID, roomID, userID
 	return err
 }
 
+func (r *ChatRepository) IsRoomMember(ctx context.Context, tenantID, roomID, userID string) (bool, error) {
+	pool, err := r.router.DBForTenant(ctx, tenantID)
+	if err != nil {
+		return false, err
+	}
+	var exists bool
+	err = pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM room_members
+			WHERE tenant_id=$1 AND room_id=$2 AND user_id=$3
+		)
+	`, tenantID, roomID, userID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (r *ChatRepository) CreateMessage(ctx context.Context, message domain.Message) (domain.Message, error) {
 	pool, err := r.router.DBForTenant(ctx, message.TenantID)
 	if err != nil {

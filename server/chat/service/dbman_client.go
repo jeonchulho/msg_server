@@ -37,6 +37,17 @@ func (c *DBManClient) AddMember(ctx context.Context, tenantID, roomID, userID st
 	return c.post(ctx, dbmanBasePath+"/rooms/members", payload, &resp)
 }
 
+func (c *DBManClient) IsRoomMember(ctx context.Context, tenantID, roomID, userID string) (bool, error) {
+	payload := map[string]any{"tenant_id": tenantID, "room_id": roomID, "user_id": userID}
+	var resp struct {
+		OK bool `json:"ok"`
+	}
+	if err := c.post(ctx, dbmanBasePath+"/rooms/members/check", payload, &resp); err != nil {
+		return false, err
+	}
+	return resp.OK, nil
+}
+
 func (c *DBManClient) CreateMessage(ctx context.Context, msg domain.Message) (domain.Message, error) {
 	var out domain.Message
 	if err := c.post(ctx, dbmanBasePath+"/messages", msg, &out); err != nil {
