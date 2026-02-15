@@ -4,6 +4,13 @@ Golang 기반 대용량 메신저 서버(MVP 백엔드 골격)입니다.
 
 - 릴리즈 노트: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 대용량 준비도 점검표: [SCALABILITY_CHECKLIST.md](SCALABILITY_CHECKLIST.md)
+- 아키텍처 구성도: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Kubernetes 배포 골격: [k8s/README.md](k8s/README.md)
+
+Kubernetes 환경별 배포 예시:
+- 개발: `kubectl apply -k ./k8s/overlays/dev`
+- 스테이징: `kubectl apply -k ./k8s/overlays/staging`
+- 운영: `kubectl apply -k ./k8s/overlays/prod`
 
 구성 스택:
 - LavinMQ (이벤트 브로커)

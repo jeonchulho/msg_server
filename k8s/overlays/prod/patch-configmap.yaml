@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: msg-server-config
+  namespace: msg
+data:
+  APP_ENV: "prod"
+  MILVUS_ENABLED: "true"
+  DBMAN_HTTP_TIMEOUT_MS: "2000"
+  DBMAN_FAIL_THRESHOLD: "3"
+  DBMAN_COOLDOWN_MS: "5000"

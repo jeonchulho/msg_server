@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: msg-server-config
+  namespace: msg
+data:
+  APP_ENV: "prod"
+  JWT_TTL_MINUTES: "1440"
+
+  PORT: "8080"
+  SESSION_PORT: "8090"
+  FILEMAN_PORT: "8081"
+  DBMAN_PORT: "8082"
+  VECTORMAN_PORT: "8083"
+
+  REDIS_ADDR: "redis:6379"
+  MILVUS_ENABLED: "true"
+  MILVUS_ENDPOINT: "http://milvus:9091"
+  VECTORMAN_ENDPOINT: "http://vectorman:8083"
+
+  DBMAN_ENDPOINTS: "http://dbman:8082"
+  DBMAN_ENDPOINT: "http://dbman:8082"
+  DBMAN_HTTP_TIMEOUT_MS: "5000"
+  DBMAN_FAIL_THRESHOLD: "3"
+  DBMAN_COOLDOWN_MS: "10000"
+
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_BUCKET: "chat-files"
+  MINIO_USE_SSL: "false"
