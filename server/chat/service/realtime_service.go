@@ -111,6 +111,19 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 				writeWSError(conn, err.Error())
 				continue
 			}
+			idempotencyKey := ""
+			if parsed.ClientMsgID != "" {
+				idempotencyKey = wsMessageIdempotencyKey(tenantID, roomID, env.UserID, parsed.ClientMsgID)
+				ok, err := redisClient.SetNX(ctx, idempotencyKey, "1", wsMessageIdempotencyTTL).Result()
+				if err != nil {
+					writeWSError(conn, "failed to process message")
+					continue
+				}
+				if !ok {
+					writeWSError(conn, "duplicate client_msg_id")
+					continue
+				}
+			}
 			created, err := s.chat.CreateMessage(ctx, domain.Message{
 				TenantID: tenantID,
 				RoomID:   roomID,
@@ -119,6 +132,9 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 				MetaJSON: BuildMessageMeta(parsed.FileID, parsed.Emojis),
 			})
 			if err != nil {
+				if idempotencyKey != "" {
+					_, _ = redisClient.Del(ctx, idempotencyKey).Result()
+				}
 				writeWSError(conn, "failed to persist message")
 				continue
 			}
@@ -133,9 +149,10 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 }
 
 type wsMessagePayload struct {
-	Body   string   `json:"body"`
-	FileID *string  `json:"file_id"`
-	Emojis []string `json:"emojis"`
+	ClientMsgID string   `json:"client_msg_id"`
+	Body        string   `json:"body"`
+	FileID      *string  `json:"file_id"`
+	Emojis      []string `json:"emojis"`
 }
 
 func parseWSMessagePayload(payload any) (wsMessagePayload, error) {
@@ -147,10 +164,17 @@ func parseWSMessagePayload(payload any) (wsMessagePayload, error) {
 	if err := json.Unmarshal(b, &out); err != nil {
 		return wsMessagePayload{}, errors.New("invalid message payload")
 	}
+	out.ClientMsgID = strings.TrimSpace(out.ClientMsgID)
 	if strings.TrimSpace(out.Body) == "" {
 		return wsMessagePayload{}, errors.New("body required")
 	}
 	return out, nil
+}
+
+const wsMessageIdempotencyTTL = 24 * time.Hour
+
+func wsMessageIdempotencyKey(tenantID, roomID, userID, clientMsgID string) string {
+	return fmt.Sprintf("ws:message:idempotency:%s:%s:%s:%s", tenantID, roomID, userID, clientMsgID)
 }
 
 func writeWSError(conn *websocket.Conn, message string) {

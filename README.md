@@ -343,8 +343,9 @@ WebSocket:
 	- 또는 `Authorization: Bearer <jwt>` 헤더 사용 가능
 	- 서버에서 토큰 검증 + 방 멤버십 검증 후 연결 허용
 	- `type=message` 이벤트는 WS 수신 시 DB에 즉시 저장 후 fan-out
+- `payload.client_msg_id`를 함께 보내면 중복 전송 시 DB 중복 저장을 방지
 - 클라이언트 JSON 메시지 타입 예:
-	- 일반 채팅 이벤트: `{ "type": "message", "payload": {"body":"...","file_id":null,"emojis":[]} }`
+	- 일반 채팅 이벤트: `{ "type": "message", "payload": {"client_msg_id":"...","body":"...","file_id":null,"emojis":[]} }`
 	- WebRTC 시그널: `webrtc_offer`, `webrtc_answer`, `webrtc_ice`
 
 브라우저 최소 예제(로그인 → 방 생성 → WS 전송):
@@ -387,7 +388,7 @@ ws.onopen = () => {
 	// 4) 실시간 이벤트 전송 (DB 저장 + Redis fan-out)
 	ws.send(JSON.stringify({
 		type: "message",
-		payload: { body: "hello realtime", emojis: [] },
+		payload: { client_msg_id: crypto.randomUUID(), body: "hello realtime", emojis: [] },
 	}));
 };
 
