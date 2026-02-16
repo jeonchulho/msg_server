@@ -267,3 +267,51 @@ flowchart TB
 - Shared tenant는 공용 Redis/MQ/DB를 사용하고 tenant 식별자 기반으로 논리 분리
 - Dedicated tenant는 tenant 메타 설정에 따라 전용 Redis/MQ/DB로 라우팅
 - 실시간(WS)은 Redis 채널 분리, 비동기 이벤트는 MQ routing key 분리
+
+## Session 다중 인스턴스 팬아웃(Redis Pub/Sub)
+
+```mermaid
+flowchart LR
+    subgraph API[Session API Nodes]
+      S1[session-1]
+      S2[session-2]
+      S3[session-3]
+    end
+
+    S1 -->|publish: session:events| R[(Redis Pub/Sub)]
+    S2 -->|publish: session:events| R
+    S3 -->|publish: session:events| R
+
+    R -->|subscribe| S1
+    R -->|subscribe| S2
+    R -->|subscribe| S3
+
+    subgraph WS[Local WS Sessions]
+      C1[user A on session-1]
+      C2[user B on session-2]
+      C3[user C on session-3]
+    end
+
+    S1 --> C1
+    S2 --> C2
+    S3 --> C3
+```
+
+### Session 이벤트 포맷
+
+- 공통 채널: `session:events`
+- `kind=notify_user`
+  - 필드: `tenant_id`, `user_id`, `payload`
+  - 용도: 특정 유저(모든 디바이스 세션) 즉시 알림
+- `kind=notify_users`
+  - 필드: `tenant_id`, `user_ids[]`, `payload_by{user_id: payload_json}`
+  - 용도: Note 수신자(`to/cc/bcc`)별 맞춤 payload fanout
+- `kind=broadcast_tenant`
+  - 필드: `tenant_id`, `payload`
+  - 용도: 테넌트 전체 상태 변경(`status.changed`) 브로드캐스트
+
+### Session 팬아웃 규칙
+
+- API 노드가 Note/Status 이벤트를 생성하면 Redis로 publish
+- 모든 session 인스턴스가 subscribe 후 로컬 Hub 세션 맵에서 대상 사용자 소켓만 전송
+- Redis publish 실패 시 로컬 전송 fallback으로 최소 전달 보장
