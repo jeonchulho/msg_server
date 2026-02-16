@@ -413,6 +413,7 @@ async function sendMessageWithFiles({
 	body = "",
 	files = [],
 	ws,
+	signal,
 }) {
 	const headers = {
 		"Content-Type": "application/json",
@@ -424,6 +425,7 @@ async function sendMessageWithFiles({
 			const res = await fetch(`${baseUrl}/api/v1/files/presign-upload`, {
 				method: "POST",
 				headers,
+				signal,
 				body: JSON.stringify({
 					object_key: `rooms/${roomId}/${crypto.randomUUID()}-${file.name}`,
 					content_type: file.type || "application/octet-stream",
@@ -443,6 +445,7 @@ async function sendMessageWithFiles({
 				const put = await fetch(item.url, {
 					method: "PUT",
 					headers: { "Content-Type": item.file.type || "application/octet-stream" },
+					signal,
 					body: item.file,
 				});
 				if (!put.ok) throw new Error(`upload failed: ${item.file.name}`);
@@ -456,6 +459,7 @@ async function sendMessageWithFiles({
 		const res = await fetch(`${baseUrl}/api/v1/files/register`, {
 			method: "POST",
 			headers,
+			signal,
 			body: JSON.stringify({
 				tenant_id: tenantId,
 				room_id: roomId,
@@ -493,11 +497,32 @@ async function sendMessageWithFiles({
 	const sendRes = await fetch(`${baseUrl}/api/v1/rooms/${roomId}/messages`, {
 		method: "POST",
 		headers,
+		signal,
 		body: JSON.stringify({ body, file_ids: fileIds, emojis: [] }),
 	});
 	if (!sendRes.ok) throw new Error("send failed");
 	return { mode: "rest", ...(await sendRes.json()) };
 }
+
+// 취소 예시
+const controller = new AbortController();
+
+sendMessageWithFiles({
+	baseUrl: "http://localhost:8080",
+	token,
+	roomId,
+	body: "hello",
+	files,
+	ws,
+	signal: controller.signal,
+}).catch((err) => {
+	if (err.name === "AbortError") {
+		console.log("upload/send canceled");
+	}
+});
+
+// 사용자가 취소 버튼 클릭 시
+// controller.abort();
 ```
 
 Postman 컬렉션:
