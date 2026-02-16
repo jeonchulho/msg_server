@@ -114,7 +114,7 @@ func (h *Hub) NotifyUser(tenantID, userID string, payload any) {
 		return
 	}
 	fanoutCount := h.notifyUserLocal(tenantID, userID, payload)
-	log.Printf("session hub fallback dispatch kind=%s tenant_id=%s fanout_count=%d", "notify_user", tenantID, fanoutCount)
+	log.Printf("event=session_hub action=fallback_dispatch kind=%s tenant_id=%s fanout_count=%d", "notify_user", tenantID, fanoutCount)
 }
 
 func (h *Hub) notifyUserLocal(tenantID, userID string, payload any) int {
@@ -139,7 +139,7 @@ func (h *Hub) NotifyUsers(tenantID string, userIDs []string, payloadBuilder func
 	for _, userID := range userIDs {
 		total += h.notifyUserLocal(tenantID, userID, payloadBuilder(userID))
 	}
-	log.Printf("session hub fallback dispatch kind=%s tenant_id=%s fanout_count=%d", "notify_users", tenantID, total)
+	log.Printf("event=session_hub action=fallback_dispatch kind=%s tenant_id=%s fanout_count=%d", "notify_users", tenantID, total)
 }
 
 func (h *Hub) BroadcastTenant(tenantID string, payload any) {
@@ -147,7 +147,7 @@ func (h *Hub) BroadcastTenant(tenantID string, payload any) {
 		return
 	}
 	fanoutCount := h.broadcastTenantLocal(tenantID, payload)
-	log.Printf("session hub fallback dispatch kind=%s tenant_id=%s fanout_count=%d", "broadcast_tenant", tenantID, fanoutCount)
+	log.Printf("event=session_hub action=fallback_dispatch kind=%s tenant_id=%s fanout_count=%d", "broadcast_tenant", tenantID, fanoutCount)
 }
 
 func (h *Hub) broadcastTenantLocal(tenantID string, payload any) int {
@@ -181,14 +181,14 @@ func (h *Hub) publishNotifyUser(tenantID, userID string, payload any) bool {
 	event := hubEvent{Kind: "notify_user", TenantID: tenantID, UserID: userID, Payload: payloadRaw}
 	b, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("session hub publish failed kind=%s tenant_id=%s error=%v", "notify_user", tenantID, err)
+		log.Printf("event=session_hub action=publish status=failed kind=%s tenant_id=%s error=%v", "notify_user", tenantID, err)
 		return false
 	}
 	if err := redisClient.Publish(context.Background(), sessionEventsChannel, b).Err(); err != nil {
-		log.Printf("session hub publish failed kind=%s tenant_id=%s error=%v", "notify_user", tenantID, err)
+		log.Printf("event=session_hub action=publish status=failed kind=%s tenant_id=%s error=%v", "notify_user", tenantID, err)
 		return false
 	}
-	log.Printf("session hub publish kind=%s tenant_id=%s fanout_count=%d", "notify_user", tenantID, 1)
+	log.Printf("event=session_hub action=publish status=ok kind=%s tenant_id=%s fanout_count=%d", "notify_user", tenantID, 1)
 	return true
 }
 
@@ -217,14 +217,14 @@ func (h *Hub) publishNotifyUsers(tenantID string, userIDs []string, payloadBuild
 	event := hubEvent{Kind: "notify_users", TenantID: tenantID, UserIDs: unique, PayloadBy: payloadBy}
 	b, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("session hub publish failed kind=%s tenant_id=%s error=%v", "notify_users", tenantID, err)
+		log.Printf("event=session_hub action=publish status=failed kind=%s tenant_id=%s error=%v", "notify_users", tenantID, err)
 		return false
 	}
 	if err := redisClient.Publish(context.Background(), sessionEventsChannel, b).Err(); err != nil {
-		log.Printf("session hub publish failed kind=%s tenant_id=%s error=%v", "notify_users", tenantID, err)
+		log.Printf("event=session_hub action=publish status=failed kind=%s tenant_id=%s error=%v", "notify_users", tenantID, err)
 		return false
 	}
-	log.Printf("session hub publish kind=%s tenant_id=%s fanout_count=%d", "notify_users", tenantID, len(unique))
+	log.Printf("event=session_hub action=publish status=ok kind=%s tenant_id=%s fanout_count=%d", "notify_users", tenantID, len(unique))
 	return true
 }
 
@@ -242,14 +242,14 @@ func (h *Hub) publishBroadcastTenant(tenantID string, payload any) bool {
 	event := hubEvent{Kind: "broadcast_tenant", TenantID: tenantID, Payload: payloadRaw}
 	b, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("session hub publish failed kind=%s tenant_id=%s error=%v", "broadcast_tenant", tenantID, err)
+		log.Printf("event=session_hub action=publish status=failed kind=%s tenant_id=%s error=%v", "broadcast_tenant", tenantID, err)
 		return false
 	}
 	if err := redisClient.Publish(context.Background(), sessionEventsChannel, b).Err(); err != nil {
-		log.Printf("session hub publish failed kind=%s tenant_id=%s error=%v", "broadcast_tenant", tenantID, err)
+		log.Printf("event=session_hub action=publish status=failed kind=%s tenant_id=%s error=%v", "broadcast_tenant", tenantID, err)
 		return false
 	}
-	log.Printf("session hub publish kind=%s tenant_id=%s fanout_count=%d", "broadcast_tenant", tenantID, h.tenantSessionCount(tenantID))
+	log.Printf("event=session_hub action=publish status=ok kind=%s tenant_id=%s fanout_count=%d", "broadcast_tenant", tenantID, h.tenantSessionCount(tenantID))
 	return true
 }
 
@@ -287,7 +287,7 @@ func (h *Hub) consumeEvents(ctx context.Context, sub *redis.PubSub) {
 				continue
 			}
 			fanoutCount := h.notifyUserLocal(event.TenantID, event.UserID, payload)
-			log.Printf("session hub consume kind=%s tenant_id=%s fanout_count=%d", event.Kind, event.TenantID, fanoutCount)
+			log.Printf("event=session_hub action=consume status=ok kind=%s tenant_id=%s fanout_count=%d", event.Kind, event.TenantID, fanoutCount)
 		case "notify_users":
 			total := 0
 			for _, userID := range event.UserIDs {
@@ -301,7 +301,7 @@ func (h *Hub) consumeEvents(ctx context.Context, sub *redis.PubSub) {
 				}
 				total += h.notifyUserLocal(event.TenantID, userID, payload)
 			}
-			log.Printf("session hub consume kind=%s tenant_id=%s fanout_count=%d", event.Kind, event.TenantID, total)
+			log.Printf("event=session_hub action=consume status=ok kind=%s tenant_id=%s fanout_count=%d", event.Kind, event.TenantID, total)
 		case "broadcast_tenant":
 			if len(event.Payload) == 0 {
 				continue
@@ -311,7 +311,7 @@ func (h *Hub) consumeEvents(ctx context.Context, sub *redis.PubSub) {
 				continue
 			}
 			fanoutCount := h.broadcastTenantLocal(event.TenantID, payload)
-			log.Printf("session hub consume kind=%s tenant_id=%s fanout_count=%d", event.Kind, event.TenantID, fanoutCount)
+			log.Printf("event=session_hub action=consume status=ok kind=%s tenant_id=%s fanout_count=%d", event.Kind, event.TenantID, fanoutCount)
 		}
 	}
 }
