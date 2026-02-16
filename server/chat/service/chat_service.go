@@ -144,12 +144,33 @@ func (s *ChatService) SearchMessages(ctx context.Context, tenantID string, q str
 	return scored, nextCursor, nil
 }
 
-func BuildMessageMeta(fileID *string, emojis []string) string {
+func BuildMessageMeta(fileID *string, fileIDs []string, emojis []string) string {
 	meta := map[string]any{
 		"emojis": emojis,
 	}
+	normalizedFileIDs := make([]string, 0)
+	seen := map[string]struct{}{}
 	if fileID != nil {
-		meta["file_id"] = *fileID
+		trimmed := strings.TrimSpace(*fileID)
+		if trimmed != "" {
+			normalizedFileIDs = append(normalizedFileIDs, trimmed)
+			seen[trimmed] = struct{}{}
+		}
+	}
+	for _, fileID := range fileIDs {
+		trimmed := strings.TrimSpace(fileID)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		normalizedFileIDs = append(normalizedFileIDs, trimmed)
+		seen[trimmed] = struct{}{}
+	}
+	if len(normalizedFileIDs) > 0 {
+		meta["file_id"] = normalizedFileIDs[0]
+		meta["file_ids"] = normalizedFileIDs
 	}
 	bytes, _ := json.Marshal(meta)
 	return string(bytes)

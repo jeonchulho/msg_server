@@ -129,7 +129,7 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 				RoomID:   roomID,
 				SenderID: env.UserID,
 				Body:     parsed.Body,
-				MetaJSON: BuildMessageMeta(parsed.FileID, parsed.Emojis),
+				MetaJSON: BuildMessageMeta(parsed.FileID, parsed.FileIDs, parsed.Emojis),
 			})
 			if err != nil {
 				if idempotencyKey != "" {
@@ -152,6 +152,7 @@ type wsMessagePayload struct {
 	ClientMsgID string   `json:"client_msg_id"`
 	Body        string   `json:"body"`
 	FileID      *string  `json:"file_id"`
+	FileIDs     []string `json:"file_ids"`
 	Emojis      []string `json:"emojis"`
 }
 

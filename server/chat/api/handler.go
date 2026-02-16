@@ -182,9 +182,10 @@ func (h *Handler) createMessage(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Body   string   `json:"body" binding:"required"`
-		FileID *string  `json:"file_id"`
-		Emojis []string `json:"emojis"`
+		Body    string   `json:"body" binding:"required"`
+		FileID  *string  `json:"file_id"`
+		FileIDs []string `json:"file_ids"`
+		Emojis  []string `json:"emojis"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, NewErrorResponse(err.Error()))
@@ -195,7 +196,7 @@ func (h *Handler) createMessage(c *gin.Context) {
 		RoomID:   roomID,
 		SenderID: actorID,
 		Body:     req.Body,
-		MetaJSON: service.BuildMessageMeta(req.FileID, req.Emojis),
+		MetaJSON: service.BuildMessageMeta(req.FileID, req.FileIDs, req.Emojis),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))

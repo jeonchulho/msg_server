@@ -327,12 +327,16 @@ func (r *ChatRepository) ListMyRooms(ctx context.Context, tenantID, userID strin
 			lm.id,
 			lm.body,
 			CASE
-				WHEN COALESCE(lm.meta_json->>'file_id', '') <> '' THEN 'file'
+				WHEN COALESCE(lm.meta_json->>'file_id', '') <> ''
+				  OR (jsonb_typeof(lm.meta_json->'file_ids') = 'array' AND jsonb_array_length(lm.meta_json->'file_ids') > 0)
+				THEN 'file'
 				WHEN jsonb_typeof(lm.meta_json->'emojis') = 'array' AND jsonb_array_length(lm.meta_json->'emojis') > 0 THEN 'emoji'
 				ELSE 'text'
 			END AS latest_message_kind,
 			CASE
-				WHEN COALESCE(lm.meta_json->>'file_id', '') <> '' THEN '[파일]'
+				WHEN COALESCE(lm.meta_json->>'file_id', '') <> ''
+				  OR (jsonb_typeof(lm.meta_json->'file_ids') = 'array' AND jsonb_array_length(lm.meta_json->'file_ids') > 0)
+				THEN '[파일]'
 				WHEN jsonb_typeof(lm.meta_json->'emojis') = 'array' AND jsonb_array_length(lm.meta_json->'emojis') > 0 AND COALESCE(lm.body, '') = '' THEN '[이모지]'
 				WHEN COALESCE(lm.body, '') = '' THEN ''
 				ELSE LEFT(lm.body, 120)
