@@ -25,6 +25,7 @@ func main() {
 
 	sessionServer, err := sessionapp.NewServer(sessionapp.Config{
 		Port:           port,
+		RedisAddr:      cmnenv.String("REDIS_ADDR", "localhost:6379"),
 		JWTSecret:      cmnenv.String("JWT_SECRET", "change-me-in-production"),
 		JWTTTLMinutes:  cmnenv.Int("JWT_TTL_MINUTES", 1440),
 		DBManEndpoint:  dbmanEndpoints[0],

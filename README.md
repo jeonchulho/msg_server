@@ -525,6 +525,53 @@ sendMessageWithFiles({
 // controller.abort();
 ```
 
+업로드 진행률 표시가 필요한 경우(XHR 기반 PUT 예시):
+
+```javascript
+function putWithProgress(url, file, { signal, onProgress } = {}) {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open("PUT", url, true);
+		xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+		xhr.upload.onprogress = (evt) => {
+			if (!evt.lengthComputable) return;
+			const percent = Math.round((evt.loaded / evt.total) * 100);
+			onProgress?.(percent, evt.loaded, evt.total);
+		};
+
+		xhr.onload = () => {
+			if (xhr.status >= 200 && xhr.status < 300) {
+				resolve();
+				return;
+			}
+			reject(new Error(`upload failed: ${xhr.status}`));
+		};
+
+		xhr.onerror = () => reject(new Error("network error"));
+		xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+
+		if (signal) {
+			if (signal.aborted) {
+				xhr.abort();
+				return;
+			}
+			signal.addEventListener("abort", () => xhr.abort(), { once: true });
+		}
+
+		xhr.send(file);
+	});
+}
+
+// 사용 예시: presigned URL로 업로드하면서 진행률 갱신
+await putWithProgress(presignedUrl, file, {
+	signal: controller.signal,
+	onProgress: (percent) => {
+		console.log(`upload ${file.name}: ${percent}%`);
+	},
+});
+```
+
 Postman 컬렉션:
 - 컬렉션: `postman/msg_server.postman_collection.json`
 	- 스모크 컬렉션: `postman/msg_server.smoke.postman_collection.json`

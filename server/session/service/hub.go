@@ -1,10 +1,14 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 type WSClient struct {
@@ -16,12 +20,65 @@ type WSClient struct {
 }
 
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[string]map[string]*WSClient
+	mu        sync.RWMutex
+	clients   map[string]map[string]*WSClient
+	redis     *redis.Client
+	redisSub  *redis.PubSub
+	subCancel context.CancelFunc
+}
+
+const sessionEventsChannel = "session:events"
+
+type hubEvent struct {
+	Kind      string            `json:"kind"`
+	TenantID  string            `json:"tenant_id"`
+	UserID    string            `json:"user_id,omitempty"`
+	UserIDs   []string          `json:"user_ids,omitempty"`
+	Payload   json.RawMessage   `json:"payload,omitempty"`
+	PayloadBy map[string]string `json:"payload_by,omitempty"`
 }
 
 func NewHub() *Hub {
 	return &Hub{clients: map[string]map[string]*WSClient{}}
+}
+
+func (h *Hub) UseRedis(client *redis.Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.redis = client
+}
+
+func (h *Hub) StartRedisSubscriber(ctx context.Context) error {
+	h.mu.Lock()
+	if h.redis == nil {
+		h.mu.Unlock()
+		return errors.New("redis client is nil")
+	}
+	if h.redisSub != nil {
+		h.mu.Unlock()
+		return nil
+	}
+	subCtx, cancel := context.WithCancel(ctx)
+	sub := h.redis.Subscribe(subCtx, sessionEventsChannel)
+	h.redisSub = sub
+	h.subCancel = cancel
+	h.mu.Unlock()
+
+	go h.consumeEvents(subCtx, sub)
+	return nil
+}
+
+func (h *Hub) StopRedisSubscriber() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.subCancel != nil {
+		h.subCancel()
+		h.subCancel = nil
+	}
+	if h.redisSub != nil {
+		_ = h.redisSub.Close()
+		h.redisSub = nil
+	}
 }
 
 func userKey(tenantID, userID string) string {
@@ -52,6 +109,13 @@ func (h *Hub) Unregister(client *WSClient) {
 }
 
 func (h *Hub) NotifyUser(tenantID, userID string, payload any) {
+	if h.publishNotifyUser(tenantID, userID, payload) {
+		return
+	}
+	h.notifyUserLocal(tenantID, userID, payload)
+}
+
+func (h *Hub) notifyUserLocal(tenantID, userID string, payload any) {
 	key := userKey(tenantID, userID)
 	h.mu.RLock()
 	sessions := h.clients[key]
@@ -63,12 +127,22 @@ func (h *Hub) NotifyUser(tenantID, userID string, payload any) {
 }
 
 func (h *Hub) NotifyUsers(tenantID string, userIDs []string, payloadBuilder func(string) any) {
+	if h.publishNotifyUsers(tenantID, userIDs, payloadBuilder) {
+		return
+	}
 	for _, userID := range userIDs {
-		h.NotifyUser(tenantID, userID, payloadBuilder(userID))
+		h.notifyUserLocal(tenantID, userID, payloadBuilder(userID))
 	}
 }
 
 func (h *Hub) BroadcastTenant(tenantID string, payload any) {
+	if h.publishBroadcastTenant(tenantID, payload) {
+		return
+	}
+	h.broadcastTenantLocal(tenantID, payload)
+}
+
+func (h *Hub) broadcastTenantLocal(tenantID string, payload any) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	prefix := tenantID + ":"
@@ -78,6 +152,128 @@ func (h *Hub) BroadcastTenant(tenantID string, payload any) {
 		}
 		for _, client := range sessions {
 			client.WriteJSON(payload)
+		}
+	}
+}
+
+func (h *Hub) publishNotifyUser(tenantID, userID string, payload any) bool {
+	h.mu.RLock()
+	redisClient := h.redis
+	h.mu.RUnlock()
+	if redisClient == nil {
+		return false
+	}
+	payloadRaw, err := json.Marshal(payload)
+	if err != nil {
+		return false
+	}
+	event := hubEvent{Kind: "notify_user", TenantID: tenantID, UserID: userID, Payload: payloadRaw}
+	b, err := json.Marshal(event)
+	if err != nil {
+		return false
+	}
+	if err := redisClient.Publish(context.Background(), sessionEventsChannel, b).Err(); err != nil {
+		return false
+	}
+	return true
+}
+
+func (h *Hub) publishNotifyUsers(tenantID string, userIDs []string, payloadBuilder func(string) any) bool {
+	h.mu.RLock()
+	redisClient := h.redis
+	h.mu.RUnlock()
+	if redisClient == nil {
+		return false
+	}
+	unique := make([]string, 0, len(userIDs))
+	seen := map[string]struct{}{}
+	payloadBy := map[string]string{}
+	for _, userID := range userIDs {
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+		unique = append(unique, userID)
+		payloadRaw, err := json.Marshal(payloadBuilder(userID))
+		if err != nil {
+			return false
+		}
+		payloadBy[userID] = string(payloadRaw)
+	}
+	event := hubEvent{Kind: "notify_users", TenantID: tenantID, UserIDs: unique, PayloadBy: payloadBy}
+	b, err := json.Marshal(event)
+	if err != nil {
+		return false
+	}
+	if err := redisClient.Publish(context.Background(), sessionEventsChannel, b).Err(); err != nil {
+		return false
+	}
+	return true
+}
+
+func (h *Hub) publishBroadcastTenant(tenantID string, payload any) bool {
+	h.mu.RLock()
+	redisClient := h.redis
+	h.mu.RUnlock()
+	if redisClient == nil {
+		return false
+	}
+	payloadRaw, err := json.Marshal(payload)
+	if err != nil {
+		return false
+	}
+	event := hubEvent{Kind: "broadcast_tenant", TenantID: tenantID, Payload: payloadRaw}
+	b, err := json.Marshal(event)
+	if err != nil {
+		return false
+	}
+	if err := redisClient.Publish(context.Background(), sessionEventsChannel, b).Err(); err != nil {
+		return false
+	}
+	return true
+}
+
+func (h *Hub) consumeEvents(ctx context.Context, sub *redis.PubSub) {
+	for {
+		msg, err := sub.ReceiveMessage(ctx)
+		if err != nil {
+			return
+		}
+		var event hubEvent
+		if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+			continue
+		}
+		switch event.Kind {
+		case "notify_user":
+			if len(event.Payload) == 0 {
+				continue
+			}
+			var payload any
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				continue
+			}
+			h.notifyUserLocal(event.TenantID, event.UserID, payload)
+		case "notify_users":
+			for _, userID := range event.UserIDs {
+				raw, ok := event.PayloadBy[userID]
+				if !ok {
+					continue
+				}
+				var payload any
+				if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+					continue
+				}
+				h.notifyUserLocal(event.TenantID, userID, payload)
+			}
+		case "broadcast_tenant":
+			if len(event.Payload) == 0 {
+				continue
+			}
+			var payload any
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				continue
+			}
+			h.broadcastTenantLocal(event.TenantID, payload)
 		}
 	}
 }
