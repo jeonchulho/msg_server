@@ -402,6 +402,104 @@ ws.onmessage = (evt) => {
 };
 ```
 
+멀티파일 업로드 + 메시지 전송 유틸 예시(브라우저 JS):
+
+```javascript
+async function sendMessageWithFiles({
+	baseUrl,
+	token,
+	roomId,
+	tenantId = "default",
+	body = "",
+	files = [],
+	ws,
+}) {
+	const headers = {
+		"Content-Type": "application/json",
+		Authorization: `Bearer ${token}`,
+	};
+
+	const presigned = await Promise.allSettled(
+		files.map(async (file) => {
+			const res = await fetch(`${baseUrl}/api/v1/files/presign-upload`, {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					object_key: `rooms/${roomId}/${crypto.randomUUID()}-${file.name}`,
+					content_type: file.type || "application/octet-stream",
+				}),
+			});
+			if (!res.ok) throw new Error(`presign failed: ${file.name}`);
+			const data = await res.json();
+			return { file, objectKey: data.object_key, url: data.url };
+		})
+	);
+
+	const uploaded = await Promise.allSettled(
+		presigned
+			.filter((r) => r.status === "fulfilled")
+			.map((r) => r.value)
+			.map(async (item) => {
+				const put = await fetch(item.url, {
+					method: "PUT",
+					headers: { "Content-Type": item.file.type || "application/octet-stream" },
+					body: item.file,
+				});
+				if (!put.ok) throw new Error(`upload failed: ${item.file.name}`);
+				return item;
+			})
+	);
+
+	const fileIds = [];
+	for (const item of uploaded) {
+		if (item.status !== "fulfilled") continue;
+		const res = await fetch(`${baseUrl}/api/v1/files/register`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({
+				tenant_id: tenantId,
+				room_id: roomId,
+				object_key: item.value.objectKey,
+				file_name: item.value.file.name,
+				content_type: item.value.file.type || "application/octet-stream",
+				size: item.value.file.size,
+			}),
+		});
+		if (!res.ok) continue;
+		const data = await res.json();
+		fileIds.push(data.id);
+	}
+
+	if (!body.trim() && fileIds.length === 0) {
+		throw new Error("no content to send");
+	}
+
+	const payload = {
+		type: "message",
+		payload: {
+			client_msg_id: crypto.randomUUID(),
+			body,
+			file_ids: fileIds,
+			emojis: [],
+		},
+	};
+
+	// WS가 연결되어 있으면 실시간 전송, 아니면 REST fallback
+	if (ws && ws.readyState === WebSocket.OPEN) {
+		ws.send(JSON.stringify(payload));
+		return { mode: "ws", file_ids: fileIds };
+	}
+
+	const sendRes = await fetch(`${baseUrl}/api/v1/rooms/${roomId}/messages`, {
+		method: "POST",
+		headers,
+		body: JSON.stringify({ body, file_ids: fileIds, emojis: [] }),
+	});
+	if (!sendRes.ok) throw new Error("send failed");
+	return { mode: "rest", ...(await sendRes.json()) };
+}
+```
+
 Postman 컬렉션:
 - 컬렉션: `postman/msg_server.postman_collection.json`
 	- 스모크 컬렉션: `postman/msg_server.smoke.postman_collection.json`
