@@ -5,6 +5,7 @@ Golang 기반 대용량 메신저 서버(MVP 백엔드 골격)입니다.
 - 릴리즈 노트: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 대용량 준비도 점검표: [SCALABILITY_CHECKLIST.md](SCALABILITY_CHECKLIST.md)
 - 10만 사용자 부하 테스트 계획: [LOAD_TEST_100K_PLAN.md](LOAD_TEST_100K_PLAN.md)
+- MSA 전환 로드맵: [MSA_ROADMAP.md](MSA_ROADMAP.md)
 - 아키텍처 구성도: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Kubernetes 배포 골격: [k8s/README.md](k8s/README.md)
 
@@ -700,6 +701,8 @@ docker compose ps
 - k6 설치(Ubuntu/dev container): `make install-k6`
 - k6 기준선 부하 테스트: `make load-chat-baseline`
 - k6 커스텀 부하 테스트: `K6_VUS=2000 K6_DURATION=15m BASE_URL=http://localhost:8080 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' make load-chat`
+- k6 리포트 저장+요약: `K6_VUS=2000 K6_DURATION=15m REPORT_DIR=./loadtest_reports make load-chat-report`
+  - 생성 파일: `k6_chat_hotpath_summary_<UTC>.json`, `k6_chat_hotpath_console_<UTC>.log`
 - 리포트 파일 저장: `DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh`
 - 옵션 환경변수:
 	- `BASE_URL` (기본: `http://localhost:8080`)
@@ -707,6 +710,7 @@ docker compose ps
 	- `SMOKE_ADMIN_PASSWORD` (로그인 점검용)
 	- `SMOKE_EMAIL`, `SMOKE_PASSWORD` (ws-only smoke 로그인용)
 	- `K6_VUS`, `K6_DURATION`, `K6_SLEEP_MS` (k6 부하 테스트 파라미터)
+	- `REPORT_DIR` (k6 리포트 출력 경로)
 	- `POSTGRES_DSN` (DB 조회용)
 	- `DIAG_REPORT` (진단 결과 파일 경로)
 	- `GOOD_DBMAN_ENDPOINT`, `BAD_DBMAN_ENDPOINT` (failover 스모크용 endpoint 오버라이드)

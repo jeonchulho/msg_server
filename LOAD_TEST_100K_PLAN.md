@@ -72,6 +72,15 @@ K6_DURATION=20m \
 make load-chat
 ```
 
+리포트 파일 저장(요약 JSON + 콘솔 로그):
+
+```bash
+K6_VUS=5000 \
+K6_DURATION=20m \
+REPORT_DIR=./loadtest_reports \
+make load-chat-report
+```
+
 ## 장애 주입 체크
 
 - `chat` 인스턴스 1개 강제 종료 시 에러율 급등/회복 시간

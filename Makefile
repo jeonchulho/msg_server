@@ -58,3 +58,6 @@ load-chat-baseline:
 
 load-chat:
 	K6_VUS="$(K6_VUS)" K6_DURATION="$(K6_DURATION)" BASE_URL="$(BASE_URL)" TENANT_ID="$(TENANT_ID)" SMOKE_EMAIL="$(SMOKE_EMAIL)" SMOKE_PASSWORD="$(SMOKE_PASSWORD)" K6_SLEEP_MS="$(K6_SLEEP_MS)" k6 run scripts/k6_chat_hotpath.js
+
+load-chat-report:
+	K6_VUS="$(K6_VUS)" K6_DURATION="$(K6_DURATION)" BASE_URL="$(BASE_URL)" TENANT_ID="$(TENANT_ID)" SMOKE_EMAIL="$(SMOKE_EMAIL)" SMOKE_PASSWORD="$(SMOKE_PASSWORD)" K6_SLEEP_MS="$(K6_SLEEP_MS)" REPORT_DIR="$(REPORT_DIR)" bash ./scripts/run_k6_chat_hotpath.sh
