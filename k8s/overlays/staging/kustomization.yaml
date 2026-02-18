@@ -8,6 +8,7 @@ patches:
   - path: patch-configmap.yaml
   - path: patch-replicas.yaml
   - path: patch-ingress.yaml
+  - path: patch-dbman-hpa.yaml
 
 images:
   - name: ghcr.io/jeonchulho/msg_server

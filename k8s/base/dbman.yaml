@@ -13,12 +13,31 @@ spec:
       labels:
         app: dbman
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - dbman
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: dbman
           image: ghcr.io/jeonchulho/msg_server:dbman-latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8082
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
           envFrom:
             - configMapRef:
                 name: msg-server-config

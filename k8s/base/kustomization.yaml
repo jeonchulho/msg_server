@@ -9,6 +9,7 @@ resources:
   - session.yaml
   - fileman.yaml
   - dbman.yaml
+  - pdb.yaml
   - vectorman.yaml
   - ingress.yaml
   - hpa.yaml

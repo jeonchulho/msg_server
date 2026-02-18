@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dbman
+  namespace: msg
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dbman
