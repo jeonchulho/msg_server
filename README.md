@@ -58,6 +58,7 @@ cp .env.example .env
 - `chat`/`session`/`fileman`은 DB 관련 처리를 이 엔드포인트로 위임합니다.
 - `dbman` 자체도 테넌트 메타 provider 경로에서 `DBMAN_ENDPOINT`를 사용할 수 있으며, 미지정 시 내부 shared DB 조회 fallback으로 동작합니다.
 - `VECTORMAN_ENDPOINT` 기본값은 `http://localhost:8083`이며, `chat`은 벡터 인덱싱/검색 처리를 이 엔드포인트로 위임합니다.
+- `CHAT_USE_MQ` 기본값은 `true`입니다. `false`면 chat은 MQ publish를 생략하고 메시지를 WebSocket(tenant room channel)으로만 fan-out 합니다.
 - `SESSION_PORT` 기본값은 `8090`입니다. (`SESSIOND_PORT`는 하위 호환)
 - `FILEMAN_PORT` 기본값은 `8081`입니다.
 - `DBMAN_PORT` 기본값은 `8082`입니다.

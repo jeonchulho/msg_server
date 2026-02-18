@@ -41,21 +41,27 @@ func NewServer(cfg Config) (*Server, error) {
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
-	mqConn, err := mq.NewConnection(cfg.LavinMQURL)
-	if err != nil {
-		return nil, fmt.Errorf("initialize lavinmq: %w", err)
-	}
-
 	tenantRedisRouter := cache.NewTenantRedisRouter(redisClient, dbPool)
 
-	tenantMQPublisher, err := service.NewAMQPPublisher(mqConn, dbPool)
-	if err != nil {
-		return nil, fmt.Errorf("initialize amqp publisher: %w", err)
+	var (
+		mqConn            *amqp.Connection
+		tenantMQPublisher *service.AMQPPublisher
+	)
+	if cfg.UseMQ {
+		mqConn, err = mq.NewConnection(cfg.LavinMQURL)
+		if err != nil {
+			return nil, fmt.Errorf("initialize lavinmq: %w", err)
+		}
+
+		tenantMQPublisher, err = service.NewAMQPPublisher(mqConn, dbPool)
+		if err != nil {
+			return nil, fmt.Errorf("initialize amqp publisher: %w", err)
+		}
 	}
 
 	dbClient := service.NewDBManClient(cfg.DBManEndpoints...)
 	vectorClient := service.NewVectormanClient(cfg.VectormanEndpoint, cfg.MilvusEnabled)
-	chatSvc := service.NewChatService(tenantMQPublisher, dbClient, vectorClient)
+	chatSvc := service.NewChatService(tenantMQPublisher, dbClient, vectorClient, cfg.UseMQ)
 	wsSvc := service.NewRealtimeService(tenantRedisRouter, chatSvc)
 
 	h := api.NewHandler(chatSvc, wsSvc, cfg.JWTSecret, cfg.JWTTTLMinutes)

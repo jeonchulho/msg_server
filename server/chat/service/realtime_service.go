@@ -236,3 +236,22 @@ func (s *RealtimeService) leave(roomKey string, conn *websocket.Conn) {
 func parseInt64(v string) string {
 	return strings.TrimSpace(v)
 }
+
+func (s *RealtimeService) PublishMessage(ctx context.Context, tenantID, roomID, userID string, message domain.Message) error {
+	redisClient, err := s.tenantRedisRouter.ClientForTenant(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	env := wsEnvelope{
+		Type:    "message",
+		RoomID:  roomID,
+		UserID:  userID,
+		Payload: message,
+	}
+	b, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
+	channel := fmt.Sprintf("tenant:%s:room:%s", tenantID, roomID)
+	return redisClient.Publish(ctx, channel, b).Err()
+}

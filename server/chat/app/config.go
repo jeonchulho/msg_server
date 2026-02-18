@@ -9,6 +9,7 @@ type Config struct {
 	Port          string
 	JWTSecret     string
 	JWTTTLMinutes int
+	UseMQ         bool
 
 	PostgresDSN string
 	RedisAddr   string
@@ -29,6 +30,7 @@ func LoadConfig() Config {
 		Port:              cmnenv.String("PORT", "8080"),
 		JWTSecret:         cmnenv.String("JWT_SECRET", "change-me-in-production"),
 		JWTTTLMinutes:     cmnenv.Int("JWT_TTL_MINUTES", 1440),
+		UseMQ:             cmnenv.Bool("CHAT_USE_MQ", true),
 		PostgresDSN:       cmnenv.String("POSTGRES_DSN", "postgres://msg:msg@localhost:5432/msg?sslmode=disable"),
 		RedisAddr:         cmnenv.String("REDIS_ADDR", "localhost:6379"),
 		LavinMQURL:        cmnenv.String("LAVINMQ_URL", "amqp://guest:guest@localhost:5672/"),

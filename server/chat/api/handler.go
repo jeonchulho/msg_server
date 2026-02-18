@@ -202,6 +202,12 @@ func (h *Handler) createMessage(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))
 		return
 	}
+	if !h.chat.IsMQEnabled() {
+		if err := h.ws.PublishMessage(c.Request.Context(), tenantID, roomID, actorID, msg); err != nil {
+			c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))
+			return
+		}
+	}
 	c.JSON(http.StatusCreated, msg)
 }
 

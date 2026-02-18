@@ -17,10 +17,15 @@ type ChatService struct {
 	mq     *AMQPPublisher
 	dbman  *DBManClient
 	vector *VectormanClient
+	useMQ  bool
 }
 
-func NewChatService(mq *AMQPPublisher, dbman *DBManClient, vector *VectormanClient) *ChatService {
-	return &ChatService{mq: mq, dbman: dbman, vector: vector}
+func NewChatService(mq *AMQPPublisher, dbman *DBManClient, vector *VectormanClient, useMQ bool) *ChatService {
+	return &ChatService{mq: mq, dbman: dbman, vector: vector, useMQ: useMQ}
+}
+
+func (s *ChatService) IsMQEnabled() bool {
+	return s.useMQ && s.mq != nil
 }
 
 func (s *ChatService) CreateRoom(ctx context.Context, tenantID string, room domain.ChatRoom, memberIDs []string) (string, error) {
@@ -52,7 +57,9 @@ func (s *ChatService) CreateMessage(ctx context.Context, msg domain.Message) (do
 		"body":       created.Body,
 		"created_at": created.CreatedAt,
 	}
-	_ = s.mq.Publish(ctx, msg.TenantID, "message.created", event)
+	if s.IsMQEnabled() {
+		_ = s.mq.Publish(ctx, msg.TenantID, "message.created", event)
+	}
 	_ = s.vector.IndexMessage(ctx, created.ID, created.RoomID, created.Body)
 	_ = s.dbman.MarkReadUpTo(ctx, msg.TenantID, created.RoomID, created.SenderID, created.ID)
 
