@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"msg_server/server/chat/domain"
 	"msg_server/server/chat/service"
 	commonauth "msg_server/server/common/auth"
+	commonlog "msg_server/server/common/log"
 	"msg_server/server/common/middleware"
 )
 
@@ -202,11 +202,11 @@ func (h *Handler) createMessage(c *gin.Context) {
 		MetaJSON: service.BuildMessageMeta(req.FileID, req.FileIDs, req.Emojis),
 	})
 	if err != nil {
-		log.Printf("event=chat_message_persist action=create status=failed source=rest tenant_id=%s room_id=%s user_id=%s latency_ms=%d error=%v", tenantID, roomID, actorID, time.Since(start).Milliseconds(), err)
+		commonlog.Errorf("event=chat_message_persist action=create status=failed source=rest tenant_id=%s room_id=%s user_id=%s latency_ms=%d error=%v", tenantID, roomID, actorID, time.Since(start).Milliseconds(), err)
 		c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))
 		return
 	}
-	log.Printf("event=chat_message_persist action=create status=ok source=rest tenant_id=%s room_id=%s user_id=%s message_id=%s latency_ms=%d", tenantID, roomID, actorID, msg.ID, time.Since(start).Milliseconds())
+	commonlog.Infof("event=chat_message_persist action=create status=ok source=rest tenant_id=%s room_id=%s user_id=%s message_id=%s latency_ms=%d", tenantID, roomID, actorID, msg.ID, time.Since(start).Milliseconds())
 	if !h.chat.IsMQEnabled() {
 		if err := h.ws.PublishMessage(c.Request.Context(), tenantID, roomID, actorID, msg); err != nil {
 			c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))

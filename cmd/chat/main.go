@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"msg_server/server/chat/app"
+	commonlog "msg_server/server/common/log"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("start http server on :%s", cfg.Port)
+		commonlog.Infof("start http server on :%s", cfg.Port)
 		if err := server.HTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("run http server: %v", err)
 		}
@@ -33,6 +34,6 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown server gracefully: %v", err)
+		commonlog.Errorf("shutdown server gracefully: %v", err)
 	}
 }

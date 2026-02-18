@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cmnenv "msg_server/server/common/env"
+	commonlog "msg_server/server/common/log"
 	filemanapp "msg_server/server/fileman/app"
 )
 
@@ -40,7 +41,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("start fileman http server on :%s", port)
+		commonlog.Infof("start fileman http server on :%s", port)
 		if err := server.HTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("run fileman http server: %v", err)
 		}
@@ -51,6 +52,6 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown fileman server gracefully: %v", err)
+		commonlog.Errorf("shutdown fileman server gracefully: %v", err)
 	}
 }

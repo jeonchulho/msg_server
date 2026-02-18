@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cmnenv "msg_server/server/common/env"
+	commonlog "msg_server/server/common/log"
 	sessionapp "msg_server/server/session/app"
 )
 
@@ -39,7 +40,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("start session http server on :%s", port)
+		commonlog.Infof("start session http server on :%s", port)
 		if err := sessionServer.HTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("run session http server: %v", err)
 		}
@@ -50,6 +51,6 @@ func main() {
 	defer cancel()
 
 	if err := sessionServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown session server gracefully: %v", err)
+		commonlog.Errorf("shutdown session server gracefully: %v", err)
 	}
 }

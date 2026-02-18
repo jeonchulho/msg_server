@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cmnenv "msg_server/server/common/env"
+	commonlog "msg_server/server/common/log"
 	dbmanapp "msg_server/server/dbman/app"
 )
 
@@ -32,7 +33,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("start dbman http server on :%s", port)
+		commonlog.Infof("start dbman http server on :%s", port)
 		if err := server.HTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("run dbman http server: %v", err)
 		}
@@ -43,6 +44,6 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown dbman server gracefully: %v", err)
+		commonlog.Errorf("shutdown dbman server gracefully: %v", err)
 	}
 }
