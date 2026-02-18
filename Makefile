@@ -50,6 +50,9 @@ diag:
 diag-report:
 	DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh
 
+install-k6:
+	bash ./scripts/install_k6.sh
+
 load-chat-baseline:
 	k6 run scripts/k6_chat_hotpath.js
 

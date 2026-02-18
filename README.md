@@ -697,6 +697,7 @@ docker compose ps
 - 또는 `bash ./scripts/dbman_failover_smoke.sh`
 - MQ 비활성(WS fan-out 전용) 스모크: `CHAT_USE_MQ=false make run-chat` 후 `make chat-ws-only-smoke`
 - 또는 `BASE_URL=http://localhost:8080 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' bash ./scripts/chat_ws_only_smoke.sh`
+- k6 설치(Ubuntu/dev container): `make install-k6`
 - k6 기준선 부하 테스트: `make load-chat-baseline`
 - k6 커스텀 부하 테스트: `K6_VUS=2000 K6_DURATION=15m BASE_URL=http://localhost:8080 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' make load-chat`
 - 리포트 파일 저장: `DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh`
