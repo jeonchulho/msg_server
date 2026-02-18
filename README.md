@@ -61,6 +61,11 @@ cp .env.example .env
 - `chat`/`session`/`fileman`은 DB 관련 처리를 이 엔드포인트로 위임합니다.
 - `dbman` 자체도 테넌트 메타 provider 경로에서 `DBMAN_ENDPOINT`를 사용할 수 있으며, 미지정 시 내부 shared DB 조회 fallback으로 동작합니다.
 - `VECTORMAN_ENDPOINT` 기본값은 `http://localhost:8083`이며, `chat`은 벡터 인덱싱/검색 처리를 이 엔드포인트로 위임합니다.
+- `vectorman` 백엔드는 `VECTOR_BACKEND=milvus|qdrant|elasticsearch`로 선택합니다. (기본: `milvus`)
+- Milvus 사용 시 `MILVUS_ENABLED`(기본: `true`), `MILVUS_ENDPOINT`(기본: `http://localhost:9091`)를 사용합니다.
+- Qdrant 사용 시 `QDRANT_ENABLED`(기본: `true`), `QDRANT_ENDPOINT`(기본: `http://localhost:6333`), `QDRANT_COLLECTION`(기본: `messages`)를 사용합니다.
+- Elasticsearch 사용 시 `ELASTICSEARCH_ENABLED`(기본: `true`), `ELASTICSEARCH_ENDPOINT`(기본: `http://localhost:9200`), `ELASTICSEARCH_INDEX`(기본: `messages`)를 사용합니다.
+- `vectorman` 시작 시 선택된 백엔드에서 컬렉션/인덱스 존재를 확인하고, 없으면 자동 생성합니다.
 - `CHAT_USE_MQ` 기본값은 `true`입니다. `false`면 chat은 MQ publish를 생략하고 메시지를 WebSocket(tenant room channel)으로만 fan-out 합니다.
 - `SESSION_PORT` 기본값은 `8090`입니다. (`SESSIOND_PORT`는 하위 호환)
 - `FILEMAN_PORT` 기본값은 `8081`입니다.

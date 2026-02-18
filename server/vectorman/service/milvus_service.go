@@ -3,8 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,9 +16,52 @@ type MilvusService struct {
 	client   *http.Client
 }
 
+const (
+	defaultCollectionName = "messages"
+	defaultVectorDim      = 128
+)
+
 func NewMilvusService(endpoint string, enabled bool) *MilvusService {
 	normalizedEndpoint := strings.TrimRight(strings.TrimSpace(endpoint), "/")
 	return &MilvusService{endpoint: normalizedEndpoint, enabled: enabled, client: &http.Client{Timeout: 4 * time.Second}}
+}
+
+func (m *MilvusService) EnsureCollection(ctx context.Context) error {
+	if !m.enabled {
+		return nil
+	}
+
+	hasPayload := map[string]any{"collectionName": defaultCollectionName}
+	hasResp, err := m.postRaw(ctx, "/v2/vectordb/collections/has", hasPayload)
+	if err == nil {
+		if hasData, ok := hasResp["data"].(map[string]any); ok {
+			if has, ok := hasData["has"].(bool); ok && has {
+				return nil
+			}
+		}
+	}
+
+	createPayload := map[string]any{
+		"collectionName": defaultCollectionName,
+		"schema": map[string]any{
+			"autoId":             false,
+			"enableDynamicField": true,
+			"fields": []map[string]any{
+				{"fieldName": "id", "dataType": "VarChar", "isPrimary": true, "maxLength": 128},
+				{"fieldName": "room_id", "dataType": "VarChar", "maxLength": 128},
+				{"fieldName": "text", "dataType": "VarChar", "maxLength": 8192},
+				{"fieldName": "vector", "dataType": "FloatVector", "elementTypeParams": map[string]any{"dim": fmt.Sprintf("%d", defaultVectorDim)}},
+			},
+		},
+	}
+
+	if _, err := m.postRaw(ctx, "/v2/vectordb/collections/create", createPayload); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "already") || strings.Contains(strings.ToLower(err.Error()), "exist") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (m *MilvusService) IndexMessage(ctx context.Context, messageID, roomID, text string) error {
@@ -28,11 +69,11 @@ func (m *MilvusService) IndexMessage(ctx context.Context, messageID, roomID, tex
 		return nil
 	}
 	payload := map[string]any{
-		"collectionName": "messages",
+		"collectionName": defaultCollectionName,
 		"data": []map[string]any{{
 			"id":      messageID,
 			"room_id": roomID,
-			"vector":  embed(text, 128),
+			"vector":  embed(text, defaultVectorDim),
 			"text":    text,
 		}},
 	}
@@ -49,8 +90,8 @@ func (m *MilvusService) SemanticSearch(ctx context.Context, query string, roomID
 		filter = fmt.Sprintf("room_id == \"%s\"", *roomID)
 	}
 	payload := map[string]any{
-		"collectionName": "messages",
-		"vector":         embed(query, 128),
+		"collectionName": defaultCollectionName,
+		"vector":         embed(query, defaultVectorDim),
 		"limit":          limit,
 		"outputFields":   []string{"id", "room_id"},
 		"filter":         filter,
@@ -81,9 +122,26 @@ type milvusResponse struct {
 }
 
 func (m *MilvusService) post(ctx context.Context, path string, payload any) (milvusResponse, error) {
-	body, err := json.Marshal(payload)
+	raw, err := m.postRaw(ctx, path, payload)
 	if err != nil {
 		return milvusResponse{}, err
+	}
+	var out milvusResponse
+	if dataRows, ok := raw["data"].([]any); ok {
+		out.Data = make([]map[string]any, 0, len(dataRows))
+		for _, row := range dataRows {
+			if mapped, ok := row.(map[string]any); ok {
+				out.Data = append(out.Data, mapped)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (m *MilvusService) postRaw(ctx context.Context, path string, payload any) (map[string]any, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
 	}
 	normalizedPath := path
 	if !strings.HasPrefix(normalizedPath, "/") {
@@ -91,32 +149,21 @@ func (m *MilvusService) post(ctx context.Context, path string, payload any) (mil
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.endpoint+normalizedPath, bytes.NewBuffer(body))
 	if err != nil {
-		return milvusResponse{}, err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Do(req)
 	if err != nil {
-		return milvusResponse{}, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return milvusResponse{}, fmt.Errorf("milvus status %d", resp.StatusCode)
+		return nil, fmt.Errorf("milvus status %d", resp.StatusCode)
 	}
-	var out milvusResponse
+	var out map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return milvusResponse{}, err
+		return nil, err
 	}
 	return out, nil
-}
-
-func embed(text string, dim int) []float32 {
-	hash := sha256.Sum256([]byte(text))
-	vec := make([]float32, dim)
-	for i := 0; i < dim; i++ {
-		offset := (i * 4) % len(hash)
-		chunk := binary.BigEndian.Uint32(hash[offset : offset+4])
-		vec[i] = float32(chunk%1000) / 1000.0
-	}
-	return vec
 }
