@@ -1,6 +1,12 @@
 up:
 	docker compose up -d
 
+up-dbman-rw:
+	docker compose up -d dbman-write dbman-read dbman-lb --scale dbman-write=2 --scale dbman-read=3
+
+down-dbman-rw:
+	docker compose stop dbman-lb dbman-write dbman-read
+
 down:
 	docker compose down
 

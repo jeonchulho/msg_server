@@ -76,8 +76,14 @@ make up
 dbman 읽기/쓰기 분리 확장(로컬, HAProxy 경유) 예시:
 
 ```bash
-docker compose up -d dbman-write dbman-read dbman-lb --scale dbman-write=2 --scale dbman-read=3
+make up-dbman-rw
 curl -s http://localhost:8082/health/ready
+```
+
+직접 compose로 실행할 때는 아래와 같습니다.
+
+```bash
+docker compose up -d dbman-write dbman-read dbman-lb --scale dbman-write=2 --scale dbman-read=3
 ```
 
 - 권장: `.env`에 `POSTGRES_WRITE_DSN`, `POSTGRES_READ_DSN`를 분리해 설정하세요.
