@@ -26,6 +26,7 @@ const (
 	envLogFilePath       = "LOG_FILE_PATH"
 	envLogMaxSizeMB      = "LOG_MAX_SIZE_MB"
 	envLogFormat         = "LOG_FORMAT"
+	envLogColor          = "LOG_COLOR"
 	logFormatText        = "text"
 	logFormatJSON        = "json"
 	terminalColorReset   = "\033[0m"
@@ -41,6 +42,7 @@ type logger struct {
 	filePath     string
 	maxSizeBytes int64
 	format       string
+	colorEnabled bool
 	file         *os.File
 }
 
@@ -62,8 +64,9 @@ func newLoggerFromEnv() *logger {
 	if format != logFormatJSON {
 		format = logFormatText
 	}
+	colorEnabled := parseBoolDefault(strings.TrimSpace(os.Getenv(envLogColor)), true)
 
-	return &logger{filePath: path, maxSizeBytes: maxSizeBytes, format: format}
+	return &logger{filePath: path, maxSizeBytes: maxSizeBytes, format: format, colorEnabled: colorEnabled}
 }
 
 func Debugf(format string, args ...any) {
@@ -92,8 +95,23 @@ func (l *logger) logf(lv level, format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
 	line := l.formatLine(ts, lv, caller, message)
 
-	fmt.Fprintln(os.Stdout, colorForLevel(lv)+line+terminalColorReset)
+	if l.colorEnabled {
+		fmt.Fprintln(os.Stdout, colorForLevel(lv)+line+terminalColorReset)
+	} else {
+		fmt.Fprintln(os.Stdout, line)
+	}
 	l.writeToFile(line + "\n")
+}
+
+func parseBoolDefault(raw string, defaultValue bool) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 func (l *logger) formatLine(ts string, lv level, caller, message string) string {
