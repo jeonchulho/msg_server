@@ -34,8 +34,7 @@ func NewServer(cfg Config) (*Server, error) {
 	}
 
 	dbClient := service.NewDBManClient(cfg.DBManEndpoints...)
-	tenantMetaProvider := service.NewDBManTenantMetaProvider(dbClient)
-	tenantRedisRouter := cache.NewTenantRedisRouter(redisClient, tenantMetaProvider)
+	tenantRedisRouter := cache.NewTenantRedisRouter(redisClient, dbClient)
 	var err error
 
 	var (
@@ -48,7 +47,7 @@ func NewServer(cfg Config) (*Server, error) {
 			return nil, fmt.Errorf("initialize lavinmq: %w", err)
 		}
 
-		tenantMQPublisher, err = service.NewAMQPPublisher(mqConn, tenantMetaProvider)
+		tenantMQPublisher, err = service.NewAMQPPublisher(mqConn, dbClient)
 		if err != nil {
 			return nil, fmt.Errorf("initialize amqp publisher: %w", err)
 		}

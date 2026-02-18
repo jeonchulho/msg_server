@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"msg_server/server/chat/domain"
+	"msg_server/server/common/infra/cache"
 	commondbman "msg_server/server/common/infra/dbman"
 )
 
@@ -255,6 +257,30 @@ func (c *DBManClient) GetTenant(ctx context.Context, tenantID string) (domain.Te
 		return domain.Tenant{}, err
 	}
 	return item, nil
+}
+
+func (c *DBManClient) GetTenantRedisMeta(ctx context.Context, tenantID string) (cache.TenantRedisMeta, error) {
+	tenant, err := c.GetTenant(ctx, tenantID)
+	if err != nil {
+		return cache.TenantRedisMeta{}, err
+	}
+	return cache.TenantRedisMeta{
+		DeploymentMode:     strings.ToLower(strings.TrimSpace(tenant.DeploymentMode)),
+		DedicatedRedisAddr: strings.TrimSpace(tenant.DedicatedRedisAddr),
+		IsActive:           tenant.IsActive,
+	}, nil
+}
+
+func (c *DBManClient) GetTenantMQMeta(ctx context.Context, tenantID string) (TenantMQMeta, error) {
+	tenant, err := c.GetTenant(ctx, tenantID)
+	if err != nil {
+		return TenantMQMeta{}, err
+	}
+	return TenantMQMeta{
+		DeploymentMode:      strings.ToLower(strings.TrimSpace(tenant.DeploymentMode)),
+		DedicatedLavinMQURL: strings.TrimSpace(tenant.DedicatedLavinMQURL),
+		IsActive:            tenant.IsActive,
+	}, nil
 }
 
 func (c *DBManClient) CreateTenant(ctx context.Context, item domain.Tenant) (domain.Tenant, error) {
