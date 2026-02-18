@@ -73,13 +73,14 @@ cp .env.example .env
 make up
 ```
 
-dbman 수평 확장(로컬, HAProxy 경유) 예시:
+dbman 읽기/쓰기 분리 확장(로컬, HAProxy 경유) 예시:
 
 ```bash
-docker compose up -d dbman dbman-lb --scale dbman=3
+docker compose up -d dbman-write dbman-read dbman-lb --scale dbman-write=2 --scale dbman-read=3
 curl -s http://localhost:8082/health/ready
 ```
 
+- 권장: `.env`에 `POSTGRES_WRITE_DSN`, `POSTGRES_READ_DSN`를 분리해 설정하세요.
 - 앱 서비스(`chat/session/fileman`)의 `DBMAN_ENDPOINTS`는 `http://dbman-lb:8082` 사용을 권장합니다.
 
 3) 마이그레이션
