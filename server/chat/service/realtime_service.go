@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -106,6 +107,7 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 				writeWSError(conn, "unauthorized")
 				continue
 			}
+			persistStartedAt := time.Now()
 			parsed, err := parseWSMessagePayload(env.Payload)
 			if err != nil {
 				writeWSError(conn, err.Error())
@@ -132,12 +134,14 @@ func (s *RealtimeService) HandleWS(c *gin.Context) {
 				MetaJSON: BuildMessageMeta(parsed.FileID, parsed.FileIDs, parsed.Emojis),
 			})
 			if err != nil {
+				log.Printf("event=chat_message_persist action=create status=failed source=ws tenant_id=%s room_id=%s user_id=%s client_msg_id_present=%t latency_ms=%d error=%v", tenantID, roomID, env.UserID, parsed.ClientMsgID != "", time.Since(persistStartedAt).Milliseconds(), err)
 				if idempotencyKey != "" {
 					_, _ = redisClient.Del(ctx, idempotencyKey).Result()
 				}
 				writeWSError(conn, "failed to persist message")
 				continue
 			}
+			log.Printf("event=chat_message_persist action=create status=ok source=ws tenant_id=%s room_id=%s user_id=%s message_id=%s client_msg_id_present=%t latency_ms=%d", tenantID, roomID, env.UserID, created.ID, parsed.ClientMsgID != "", time.Since(persistStartedAt).Milliseconds())
 			env.Payload = created
 		}
 		if env.Type == "webrtc_offer" || env.Type == "webrtc_answer" || env.Type == "webrtc_ice" {
