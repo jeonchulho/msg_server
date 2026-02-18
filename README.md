@@ -67,6 +67,9 @@ cp .env.example .env
 - Elasticsearch 사용 시 `ELASTICSEARCH_ENABLED`(기본: `true`), `ELASTICSEARCH_ENDPOINT`(기본: `http://localhost:9200`), `ELASTICSEARCH_INDEX`(기본: `messages`)를 사용합니다.
 - `vectorman` 시작 시 선택된 백엔드에서 컬렉션/인덱스 존재를 확인하고, 없으면 자동 생성합니다.
 - `CHAT_USE_MQ` 기본값은 `true`입니다. `false`면 chat은 MQ publish를 생략하고 메시지를 WebSocket(tenant room channel)으로만 fan-out 합니다.
+- 로거 출력 포맷은 `LOG_FORMAT=text|json`으로 설정합니다. (기본: `text`)
+- 로거 파일 경로는 `LOG_FILE_PATH`(기본: `./logs/msg_server.log`)로 설정합니다.
+- 로거 파일 최대 크기는 `LOG_MAX_SIZE_MB`(기본: `20`)로 설정하며, 초과 시 `로그명_일시_인덱스.log`로 로테이션합니다.
 - `SESSION_PORT` 기본값은 `8090`입니다. (`SESSIOND_PORT`는 하위 호환)
 - `FILEMAN_PORT` 기본값은 `8081`입니다.
 - `DBMAN_PORT` 기본값은 `8082`입니다.

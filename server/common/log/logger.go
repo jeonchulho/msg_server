@@ -1,6 +1,7 @@
 package log
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,6 +25,9 @@ const (
 	defaultMaxSizeBytes  = 20 * 1024 * 1024
 	envLogFilePath       = "LOG_FILE_PATH"
 	envLogMaxSizeMB      = "LOG_MAX_SIZE_MB"
+	envLogFormat         = "LOG_FORMAT"
+	logFormatText        = "text"
+	logFormatJSON        = "json"
 	terminalColorReset   = "\033[0m"
 	terminalColorGray    = "\033[90m"
 	terminalColorGreen   = "\033[32m"
@@ -36,6 +40,7 @@ type logger struct {
 	mu           sync.Mutex
 	filePath     string
 	maxSizeBytes int64
+	format       string
 	file         *os.File
 }
 
@@ -53,8 +58,12 @@ func newLoggerFromEnv() *logger {
 			maxSizeBytes = int64(sizeMB) * 1024 * 1024
 		}
 	}
+	format := strings.ToLower(strings.TrimSpace(os.Getenv(envLogFormat)))
+	if format != logFormatJSON {
+		format = logFormatText
+	}
 
-	return &logger{filePath: path, maxSizeBytes: maxSizeBytes}
+	return &logger{filePath: path, maxSizeBytes: maxSizeBytes, format: format}
 }
 
 func Debugf(format string, args ...any) {
@@ -78,11 +87,28 @@ func Exceptionf(format string, args ...any) {
 }
 
 func (l *logger) logf(lv level, format string, args ...any) {
+	ts := time.Now().Format(time.RFC3339Nano)
+	caller := callerFuncName(3)
 	message := fmt.Sprintf(format, args...)
-	line := fmt.Sprintf("%s:%s:%s:%s", time.Now().Format(time.RFC3339Nano), lv, callerFuncName(3), message)
+	line := l.formatLine(ts, lv, caller, message)
 
 	fmt.Fprintln(os.Stdout, colorForLevel(lv)+line+terminalColorReset)
 	l.writeToFile(line + "\n")
+}
+
+func (l *logger) formatLine(ts string, lv level, caller, message string) string {
+	if l.format == logFormatJSON {
+		payload := map[string]string{
+			"timestamp": ts,
+			"level":     string(lv),
+			"caller":    caller,
+			"message":   message,
+		}
+		if b, err := json.Marshal(payload); err == nil {
+			return string(b)
+		}
+	}
+	return fmt.Sprintf("%s:%s:%s:%s", ts, lv, caller, message)
 }
 
 func (l *logger) writeToFile(line string) {
