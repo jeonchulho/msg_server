@@ -49,3 +49,9 @@ diag:
 
 diag-report:
 	DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh
+
+load-chat-baseline:
+	k6 run scripts/k6_chat_hotpath.js
+
+load-chat:
+	K6_VUS="$(K6_VUS)" K6_DURATION="$(K6_DURATION)" BASE_URL="$(BASE_URL)" TENANT_ID="$(TENANT_ID)" SMOKE_EMAIL="$(SMOKE_EMAIL)" SMOKE_PASSWORD="$(SMOKE_PASSWORD)" K6_SLEEP_MS="$(K6_SLEEP_MS)" k6 run scripts/k6_chat_hotpath.js

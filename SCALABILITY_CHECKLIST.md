@@ -13,6 +13,7 @@
 
 상세 실행 문서:
 - [DBMAN_HA_TODO.md](DBMAN_HA_TODO.md)
+- [LOAD_TEST_100K_PLAN.md](LOAD_TEST_100K_PLAN.md)
 
 ## 항목별 점검
 
