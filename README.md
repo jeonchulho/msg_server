@@ -73,6 +73,15 @@ cp .env.example .env
 make up
 ```
 
+dbman 수평 확장(로컬, HAProxy 경유) 예시:
+
+```bash
+docker compose up -d dbman dbman-lb --scale dbman=3
+curl -s http://localhost:8082/health/ready
+```
+
+- 앱 서비스(`chat/session/fileman`)의 `DBMAN_ENDPOINTS`는 `http://dbman-lb:8082` 사용을 권장합니다.
+
 3) 마이그레이션
 
 ```bash
