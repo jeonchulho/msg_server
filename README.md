@@ -694,11 +694,14 @@ docker compose ps
 - 또는 `bash ./scripts/quick_diag.sh`
 - dbman failover 스모크: `make dbman-failover-smoke`
 - 또는 `bash ./scripts/dbman_failover_smoke.sh`
+- MQ 비활성(WS fan-out 전용) 스모크: `CHAT_USE_MQ=false make run-chat` 후 `make chat-ws-only-smoke`
+- 또는 `BASE_URL=http://localhost:8080 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' bash ./scripts/chat_ws_only_smoke.sh`
 - 리포트 파일 저장: `DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh`
 - 옵션 환경변수:
 	- `BASE_URL` (기본: `http://localhost:8080`)
 	- `ADMIN_EMAIL` (기본: `admin@example.com`)
 	- `SMOKE_ADMIN_PASSWORD` (로그인 점검용)
+	- `SMOKE_EMAIL`, `SMOKE_PASSWORD` (ws-only smoke 로그인용)
 	- `POSTGRES_DSN` (DB 조회용)
 	- `DIAG_REPORT` (진단 결과 파일 경로)
 	- `GOOD_DBMAN_ENDPOINT`, `BAD_DBMAN_ENDPOINT` (failover 스모크용 endpoint 오버라이드)

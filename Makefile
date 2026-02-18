@@ -41,6 +41,9 @@ smoke:
 dbman-failover-smoke:
 	bash ./scripts/dbman_failover_smoke.sh
 
+chat-ws-only-smoke:
+	bash ./scripts/chat_ws_only_smoke.sh
+
 diag:
 	bash ./scripts/quick_diag.sh
 
