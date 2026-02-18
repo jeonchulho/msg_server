@@ -8,10 +8,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+type TenantMQMeta struct {
+	DeploymentMode      string
+	DedicatedLavinMQURL string
+	IsActive            bool
+}
+
+type TenantMQMetaProvider interface {
+	GetTenantMQMeta(ctx context.Context, tenantID string) (TenantMQMeta, error)
+}
 
 type tenantPublisher struct {
 	conn    *amqp.Connection
@@ -19,7 +27,7 @@ type tenantPublisher struct {
 }
 
 type AMQPPublisher struct {
-	db        *pgxpool.Pool
+	provider  TenantMQMetaProvider
 	shared    *tenantPublisher
 	mu        sync.RWMutex
 	dedicated map[string]*tenantPublisher
@@ -38,7 +46,7 @@ type cachedMQMeta struct {
 	fetchedAt time.Time
 }
 
-func NewAMQPPublisher(conn *amqp.Connection, db *pgxpool.Pool) (*AMQPPublisher, error) {
+func NewAMQPPublisher(conn *amqp.Connection, provider TenantMQMetaProvider) (*AMQPPublisher, error) {
 	ch, err := conn.Channel()
 	if err != nil {
 		return nil, err
@@ -47,7 +55,7 @@ func NewAMQPPublisher(conn *amqp.Connection, db *pgxpool.Pool) (*AMQPPublisher, 
 		return nil, err
 	}
 	return &AMQPPublisher{
-		db:        db,
+		provider:  provider,
 		shared:    &tenantPublisher{conn: conn, channel: ch},
 		dedicated: map[string]*tenantPublisher{},
 		metaCache: map[string]cachedMQMeta{},
@@ -165,19 +173,23 @@ func (p *AMQPPublisher) loadMeta(ctx context.Context, tenantID string) (mqMeta, 
 	}
 	p.mu.RUnlock()
 
-	var meta mqMeta
-	err := p.db.QueryRow(ctx, `
-		SELECT deployment_mode, dedicated_lavinmq_url, is_active
-		FROM tenants
-		WHERE tenant_id=$1
-	`, tenantID).Scan(&meta.mode, &meta.url, &meta.isActive)
+	if p.provider == nil {
+		meta := mqMeta{mode: "shared", url: "", isActive: true}
+		p.mu.Lock()
+		p.metaCache[tenantID] = cachedMQMeta{meta: meta, fetchedAt: now}
+		p.mu.Unlock()
+		return meta, nil
+	}
+
+	providerMeta, err := p.provider.GetTenantMQMeta(ctx, tenantID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return mqMeta{}, errors.New("tenant not found")
-		}
 		return mqMeta{}, err
 	}
-	meta.mode = strings.ToLower(strings.TrimSpace(meta.mode))
+	meta := mqMeta{
+		mode:     strings.ToLower(strings.TrimSpace(providerMeta.DeploymentMode)),
+		url:      strings.TrimSpace(providerMeta.DedicatedLavinMQURL),
+		isActive: providerMeta.IsActive,
+	}
 
 	p.mu.Lock()
 	p.metaCache[tenantID] = cachedMQMeta{meta: meta, fetchedAt: now}

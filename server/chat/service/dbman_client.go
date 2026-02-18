@@ -248,6 +248,15 @@ func (c *DBManClient) ListTenants(ctx context.Context) ([]domain.Tenant, error) 
 	return items, nil
 }
 
+func (c *DBManClient) GetTenant(ctx context.Context, tenantID string) (domain.Tenant, error) {
+	var item domain.Tenant
+	payload := map[string]any{"tenant_id": tenantID}
+	if err := c.post(ctx, dbmanBasePath+"/tenants/get", payload, &item); err != nil {
+		return domain.Tenant{}, err
+	}
+	return item, nil
+}
+
 func (c *DBManClient) CreateTenant(ctx context.Context, item domain.Tenant) (domain.Tenant, error) {
 	var created domain.Tenant
 	if err := c.post(ctx, dbmanBasePath+"/tenants/create", item, &created); err != nil {

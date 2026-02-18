@@ -7,20 +7,17 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 
 	"msg_server/server/chat/api"
 	"msg_server/server/chat/service"
 	"msg_server/server/common/infra/cache"
-	"msg_server/server/common/infra/db"
 	"msg_server/server/common/infra/mq"
 )
 
 type Server struct {
 	HTTPServer        *http.Server
-	DB                *pgxpool.Pool
 	Redis             *redis.Client
 	MQConn            *amqp.Connection
 	TenantRedisRouter *cache.TenantRedisRouter
@@ -31,17 +28,15 @@ func NewServer(cfg Config) (*Server, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	dbPool, err := db.NewPool(ctx, cfg.PostgresDSN)
-	if err != nil {
-		return nil, fmt.Errorf("initialize postgres: %w", err)
-	}
-
 	redisClient := cache.NewClient(cfg.RedisAddr)
 	if err := cache.Ping(ctx, redisClient); err != nil {
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
-	tenantRedisRouter := cache.NewTenantRedisRouter(redisClient, dbPool)
+	dbClient := service.NewDBManClient(cfg.DBManEndpoints...)
+	tenantMetaProvider := service.NewDBManTenantMetaProvider(dbClient)
+	tenantRedisRouter := cache.NewTenantRedisRouter(redisClient, tenantMetaProvider)
+	var err error
 
 	var (
 		mqConn            *amqp.Connection
@@ -53,13 +48,12 @@ func NewServer(cfg Config) (*Server, error) {
 			return nil, fmt.Errorf("initialize lavinmq: %w", err)
 		}
 
-		tenantMQPublisher, err = service.NewAMQPPublisher(mqConn, dbPool)
+		tenantMQPublisher, err = service.NewAMQPPublisher(mqConn, tenantMetaProvider)
 		if err != nil {
 			return nil, fmt.Errorf("initialize amqp publisher: %w", err)
 		}
 	}
 
-	dbClient := service.NewDBManClient(cfg.DBManEndpoints...)
 	vectorClient := service.NewVectormanClient(cfg.VectormanEndpoint, cfg.MilvusEnabled)
 	chatSvc := service.NewChatService(tenantMQPublisher, dbClient, vectorClient, cfg.UseMQ)
 	wsSvc := service.NewRealtimeService(tenantRedisRouter, chatSvc)
@@ -78,7 +72,6 @@ func NewServer(cfg Config) (*Server, error) {
 
 	return &Server{
 		HTTPServer:        httpServer,
-		DB:                dbPool,
 		Redis:             redisClient,
 		MQConn:            mqConn,
 		TenantRedisRouter: tenantRedisRouter,
@@ -98,9 +91,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.Redis != nil {
 		_ = s.Redis.Close()
-	}
-	if s.DB != nil {
-		s.DB.Close()
 	}
 	return s.HTTPServer.Shutdown(ctx)
 }

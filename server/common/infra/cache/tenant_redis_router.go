@@ -7,14 +7,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
 
+type TenantRedisMeta struct {
+	DeploymentMode     string
+	DedicatedRedisAddr string
+	IsActive           bool
+}
+
+type TenantRedisMetaProvider interface {
+	GetTenantRedisMeta(ctx context.Context, tenantID string) (TenantRedisMeta, error)
+}
+
 type TenantRedisRouter struct {
 	shared    *redis.Client
-	db        *pgxpool.Pool
+	provider  TenantRedisMetaProvider
 	cacheTTL  time.Duration
 	mu        sync.RWMutex
 	metaCache map[string]cachedRedisMeta
@@ -32,10 +40,10 @@ type cachedRedisMeta struct {
 	fetchedAt time.Time
 }
 
-func NewTenantRedisRouter(shared *redis.Client, db *pgxpool.Pool) *TenantRedisRouter {
+func NewTenantRedisRouter(shared *redis.Client, provider TenantRedisMetaProvider) *TenantRedisRouter {
 	return &TenantRedisRouter{
 		shared:    shared,
-		db:        db,
+		provider:  provider,
 		cacheTTL:  30 * time.Second,
 		metaCache: map[string]cachedRedisMeta{},
 		clients:   map[string]*redis.Client{},
@@ -108,18 +116,19 @@ func (r *TenantRedisRouter) loadMeta(ctx context.Context, tenantID string) (redi
 	r.mu.RUnlock()
 
 	var meta redisMeta
-	err := r.db.QueryRow(ctx, `
-		SELECT deployment_mode, dedicated_redis_addr, is_active
-		FROM tenants
-		WHERE tenant_id=$1
-	`, tenantID).Scan(&meta.Mode, &meta.Addr, &meta.IsActive)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return redisMeta{}, errors.New("tenant not found")
+	if r.provider == nil {
+		meta = redisMeta{Mode: "shared", Addr: "", IsActive: true}
+	} else {
+		providerMeta, err := r.provider.GetTenantRedisMeta(ctx, tenantID)
+		if err != nil {
+			return redisMeta{}, err
 		}
-		return redisMeta{}, err
+		meta = redisMeta{
+			Mode:     strings.ToLower(strings.TrimSpace(providerMeta.DeploymentMode)),
+			Addr:     strings.TrimSpace(providerMeta.DedicatedRedisAddr),
+			IsActive: providerMeta.IsActive,
+		}
 	}
-	meta.Mode = strings.ToLower(strings.TrimSpace(meta.Mode))
 
 	r.mu.Lock()
 	r.metaCache[tenantID] = cachedRedisMeta{meta: meta, fetchedAt: now}
