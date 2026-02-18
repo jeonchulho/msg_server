@@ -2,6 +2,9 @@
 
 본 문서는 현재 `msg_server`의 구조를 기준으로, **지금 유지할 것**과 **단계적으로 분리/고도화할 것**을 정리한 실행 로드맵입니다.
 
+상세 실행 가이드:
+- [MSA_DEEPDIVE_DBMAN_REDIS.md](MSA_DEEPDIVE_DBMAN_REDIS.md)
+
 ## 현재 포지션
 
 - 현 상태는 “서비스 분리 + 중앙 데이터 게이트웨이(dbman)” 패턴

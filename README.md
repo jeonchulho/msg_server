@@ -6,6 +6,7 @@ Golang 기반 대용량 메신저 서버(MVP 백엔드 골격)입니다.
 - 대용량 준비도 점검표: [SCALABILITY_CHECKLIST.md](SCALABILITY_CHECKLIST.md)
 - 10만 사용자 부하 테스트 계획: [LOAD_TEST_100K_PLAN.md](LOAD_TEST_100K_PLAN.md)
 - MSA 전환 로드맵: [MSA_ROADMAP.md](MSA_ROADMAP.md)
+- MSA 상세 가이드(dbman/Redis): [MSA_DEEPDIVE_DBMAN_REDIS.md](MSA_DEEPDIVE_DBMAN_REDIS.md)
 - 아키텍처 구성도: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Kubernetes 배포 골격: [k8s/README.md](k8s/README.md)
 
