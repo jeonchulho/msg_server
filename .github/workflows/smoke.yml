@@ -26,7 +26,7 @@ on:
       run_load_test:
         description: Run k6 load-test job
         required: false
-        default: "false"
+        default: "true"
         type: boolean
       load_test_profile:
         description: Profile (chat=chat만, msa=orghub+chat+session+tenanthub)
@@ -47,7 +47,7 @@ on:
       load_test_stage:
         description: Stage preset (A/B/C/D 선택 시 k6_vus,k6_duration 자동 적용)
         required: false
-        default: custom
+        default: A
         type: choice
         options:
           - custom
