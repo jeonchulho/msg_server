@@ -23,6 +23,27 @@ on:
         required: false
         default: "false"
         type: boolean
+      run_load_test:
+        description: Run optional k6 load-test job
+        required: false
+        default: "false"
+        type: boolean
+      load_test_profile:
+        description: Load-test profile (chat or msa)
+        required: false
+        default: msa
+        type: choice
+        options:
+          - chat
+          - msa
+      k6_vus:
+        description: k6 VUs for load-test job
+        required: false
+        default: "500"
+      k6_duration:
+        description: k6 duration for load-test job (e.g. 10m)
+        required: false
+        default: "10m"
 
 jobs:
   smoke:
@@ -263,4 +284,197 @@ jobs:
           if [[ -f /tmp/dbman.pid ]]; then
             kill "$(cat /tmp/dbman.pid)" || true
           fi
+          docker compose down -v
+
+  load-test:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_load_test == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client curl
+
+      - name: Install k6
+        run: make install-k6
+
+      - name: Start infra
+        run: docker compose up -d postgres redis lavinmq minio
+
+      - name: Wait for infra health
+        run: |
+          for i in {1..90}; do
+            pg=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-postgres 2>/dev/null || true)
+            rd=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-redis 2>/dev/null || true)
+            mq=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-lavinmq 2>/dev/null || true)
+            mi=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' msg-minio 2>/dev/null || true)
+            echo "postgres=$pg redis=$rd lavinmq=$mq minio=$mi"
+            if [[ "$pg" == "healthy" && "$rd" == "healthy" && "$mq" == "healthy" && "$mi" == "healthy" ]]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "infra not healthy in time" >&2
+          docker compose ps
+          exit 1
+
+      - name: Run migrations
+        env:
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+        run: make migrate
+
+      - name: Report smoke password source
+        env:
+          SECRET_PW: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: |
+          if [[ -z "$SECRET_PW" ]]; then
+            echo "::error::load-test job requires repository secret SMOKE_ADMIN_PASSWORD."
+            exit 1
+          fi
+          echo "Using load-test password source: secret(SMOKE_ADMIN_PASSWORD)"
+
+      - name: Seed admin user
+        env:
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+          TENANT_ID: ${{ github.event.inputs.tenant_id || 'default' }}
+          ADMIN_EMAIL: ${{ github.event.inputs.admin_email || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+          ADMIN_NAME: Admin
+          ADMIN_TITLE: Administrator
+        run: bash ./scripts/seed_admin.sh
+
+      - name: Start dbman server
+        env:
+          DBMAN_PORT: 8082
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+        run: |
+          nohup go run ./cmd/dbman > /tmp/dbman.log 2>&1 &
+          echo $! > /tmp/dbman.pid
+
+      - name: Wait for dbman readiness
+        run: |
+          for i in {1..90}; do
+            code=$(curl -s -o /tmp/dbman_health.json -w "%{http_code}" "http://localhost:8082/health/ready" || true)
+            if [[ "$code" == "200" ]]; then
+              cat /tmp/dbman_health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "dbman not ready in time" >&2
+          cat /tmp/dbman.log || true
+          exit 1
+
+      - name: Start app servers (chat/session/orghub/tenanthub)
+        env:
+          APP_ENV: ci
+          JWT_SECRET: change-me-in-production
+          JWT_TTL_MINUTES: 1440
+          DBMAN_ENDPOINTS: http://localhost:8082
+          DBMAN_ENDPOINT: http://localhost:8082
+          DBMAN_HTTP_TIMEOUT_MS: "5000"
+          DBMAN_FAIL_THRESHOLD: "3"
+          DBMAN_COOLDOWN_MS: "10000"
+          REDIS_ADDR: localhost:6379
+          LAVINMQ_URL: amqp://guest:guest@localhost:5672/
+          CHAT_USE_MQ: "false"
+          MILVUS_ENABLED: "false"
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: minio
+          MINIO_SECRET_KEY: minio123
+          MINIO_BUCKET: chat-files
+          MINIO_USE_SSL: "false"
+          POSTGRES_DSN: postgres://msg:msg@localhost:5432/msg?sslmode=disable
+          SESSION_PORT: 8090
+          ORGHUB_PORT: 8091
+          TENANTHUB_PORT: 8092
+          PORT: 8080
+        run: |
+          nohup go run ./cmd/session > /tmp/session.log 2>&1 &
+          echo $! > /tmp/session.pid
+          nohup go run ./cmd/orghub > /tmp/orghub.log 2>&1 &
+          echo $! > /tmp/orghub.pid
+          nohup go run ./cmd/tenanthub > /tmp/tenanthub.log 2>&1 &
+          echo $! > /tmp/tenanthub.pid
+          nohup go run ./cmd/chat > /tmp/chat.log 2>&1 &
+          echo $! > /tmp/chat.pid
+
+      - name: Wait for app health endpoints
+        run: |
+          check_health() {
+            local url="$1"
+            for i in {1..90}; do
+              code=$(curl -s -o /tmp/health.json -w "%{http_code}" "$url" || true)
+              if [[ "$code" == "200" ]]; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          check_health "http://localhost:8080/health" || { echo "chat health timeout"; cat /tmp/chat.log || true; exit 1; }
+          check_health "http://localhost:8090/health" || { echo "session health timeout"; cat /tmp/session.log || true; exit 1; }
+          check_health "http://localhost:8091/health" || { echo "orghub health timeout"; cat /tmp/orghub.log || true; exit 1; }
+          check_health "http://localhost:8092/health" || { echo "tenanthub health timeout"; cat /tmp/tenanthub.log || true; exit 1; }
+
+      - name: Run load-test profile
+        env:
+          K6_VUS: ${{ github.event.inputs.k6_vus || '500' }}
+          K6_DURATION: ${{ github.event.inputs.k6_duration || '10m' }}
+          K6_SLEEP_MS: "150"
+          TENANT_ID: ${{ github.event.inputs.tenant_id || 'default' }}
+          SMOKE_EMAIL: ${{ github.event.inputs.admin_email || 'admin@example.com' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+          BASE_URL: http://localhost:8080
+          CHAT_BASE_URL: http://localhost:8080
+          SESSION_BASE_URL: http://localhost:8090
+          ORGHUB_BASE_URL: http://localhost:8091
+          TENANTHUB_BASE_URL: http://localhost:8092
+          REPORT_DIR: ./loadtest_reports
+        run: |
+          if [[ "${{ github.event.inputs.load_test_profile || 'msa' }}" == "chat" ]]; then
+            make load-chat-report
+          else
+            make load-msa-report
+          fi
+
+      - name: Upload load-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: loadtest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            loadtest_reports/*.json
+            loadtest_reports/*.md
+            loadtest_reports/*.log
+          if-no-files-found: warn
+
+      - name: Print logs on failure
+        if: failure()
+        run: |
+          echo "===== dbman.log =====" && cat /tmp/dbman.log || true
+          echo "===== chat.log =====" && cat /tmp/chat.log || true
+          echo "===== session.log =====" && cat /tmp/session.log || true
+          echo "===== orghub.log =====" && cat /tmp/orghub.log || true
+          echo "===== tenanthub.log =====" && cat /tmp/tenanthub.log || true
+
+      - name: Teardown
+        if: always()
+        run: |
+          for pidf in /tmp/chat.pid /tmp/session.pid /tmp/orghub.pid /tmp/tenanthub.pid /tmp/dbman.pid; do
+            if [[ -f "$pidf" ]]; then
+              kill "$(cat "$pidf")" || true
+            fi
+          done
           docker compose down -v
