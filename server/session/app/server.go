@@ -41,9 +41,11 @@ func NewServer(cfg Config) (*Server, error) {
 	hub := sessionservice.NewHub()
 	hub.UseRedis(redisClient)
 	_ = hub.StartRedisSubscriber(context.Background())
-	svc := sessionservice.NewService(dbClient, hub)
+	sessionSvc := sessionservice.NewSessionService(dbClient, hub)
+	noteSvc := sessionservice.NewNoteService(dbClient, hub)
+	chatSvc := sessionservice.NewChatService(dbClient, hub)
 	auth := commonauth.NewService(cfg.JWTSecret, cfg.JWTTTLMinutes)
-	h := sessionapi.NewHandler(svc, auth, hub)
+	h := sessionapi.NewHandler(sessionSvc, noteSvc, chatSvc, auth, hub)
 
 	r := gin.Default()
 	h.RegisterRoutes(r)

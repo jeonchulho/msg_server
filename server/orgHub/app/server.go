@@ -10,7 +10,6 @@ import (
 	commonauth "msg_server/server/common/auth"
 	orgapi "msg_server/server/orgHub/api"
 	orgHub "msg_server/server/orgHub/service"
-	sessionservice "msg_server/server/session/service"
 )
 
 type Config struct {
@@ -25,7 +24,7 @@ type Server struct {
 }
 
 func NewServer(cfg Config) (*Server, error) {
-	dbClient := sessionservice.NewDBManClient(cfg.DBManEndpoints...)
+	dbClient := orgHub.NewDBManClient(cfg.DBManEndpoints...)
 	userSvc := orgHub.NewService(dbClient)
 	auth := commonauth.NewService(cfg.JWTSecret, cfg.JWTTTLMinutes)
 	h := orgapi.NewHandler(userSvc, auth)

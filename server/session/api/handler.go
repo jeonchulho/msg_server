@@ -17,13 +17,15 @@ import (
 )
 
 type Handler struct {
-	svc  *sessionservice.Service
-	auth *commonauth.Service
-	hub  *sessionservice.Hub
+	sessionSvc *sessionservice.SessionService
+	noteSvc    *sessionservice.NoteService
+	chatSvc    *sessionservice.ChatService
+	auth       *commonauth.Service
+	hub        *sessionservice.Hub
 }
 
-func NewHandler(svc *sessionservice.Service, auth *commonauth.Service, hub *sessionservice.Hub) *Handler {
-	return &Handler{svc: svc, auth: auth, hub: hub}
+func NewHandler(sessionSvc *sessionservice.SessionService, noteSvc *sessionservice.NoteService, chatSvc *sessionservice.ChatService, auth *commonauth.Service, hub *sessionservice.Hub) *Handler {
+	return &Handler{sessionSvc: sessionSvc, noteSvc: noteSvc, chatSvc: chatSvc, auth: auth, hub: hub}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
@@ -52,7 +54,7 @@ func (h *Handler) handleSessionWS(c *gin.Context) {
 	sessionID := strings.TrimSpace(c.Query("session_id"))
 	sessionToken := strings.TrimSpace(c.Query("session_token"))
 
-	ok, err := h.svc.ValidateSession(c.Request.Context(), tenantID, userID, sessionID, sessionToken)
+	ok, err := h.sessionSvc.ValidateSession(c.Request.Context(), tenantID, userID, sessionID, sessionToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, httpresp.NewErrorResponse(err.Error()))
 		return
@@ -88,7 +90,7 @@ func (h *Handler) handleSessionWS(c *gin.Context) {
 		if err != nil {
 			return
 		}
-		_, _ = h.svc.ValidateSession(c.Request.Context(), tenantID, userID, sessionID, sessionToken)
+		_, _ = h.sessionSvc.ValidateSession(c.Request.Context(), tenantID, userID, sessionID, sessionToken)
 	}
 }
 
@@ -113,7 +115,7 @@ func (h *Handler) loginDevice(c *gin.Context) {
 		return
 	}
 
-	session, err := h.svc.LoginDevice(c.Request.Context(), tenantID, userID, req.DeviceID, req.DeviceName, authToken, req.AllowedTenants)
+	session, err := h.sessionSvc.LoginDevice(c.Request.Context(), tenantID, userID, req.DeviceID, req.DeviceName, authToken, req.AllowedTenants)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
@@ -135,7 +137,7 @@ func (h *Handler) updateSessionStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
 	}
-	if err := h.svc.UpdateStatus(c.Request.Context(), tenantID, userID, req.Status, req.StatusNote); err != nil {
+	if err := h.sessionSvc.UpdateStatus(c.Request.Context(), tenantID, userID, req.Status, req.StatusNote); err != nil {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
 	}
@@ -153,7 +155,7 @@ func (h *Handler) sendNote(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
 	}
-	note, err := h.svc.SendNote(c.Request.Context(), tenantID, userID, req)
+	note, err := h.noteSvc.SendNote(c.Request.Context(), tenantID, userID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
@@ -168,7 +170,7 @@ func (h *Handler) listInbox(c *gin.Context) {
 		return
 	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	items, err := h.svc.ListInbox(c.Request.Context(), tenantID, userID, limit)
+	items, err := h.noteSvc.ListInbox(c.Request.Context(), tenantID, userID, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, httpresp.NewErrorResponse(err.Error()))
 		return
@@ -183,7 +185,7 @@ func (h *Handler) markNoteRead(c *gin.Context) {
 		return
 	}
 	noteID := strings.TrimSpace(c.Param("id"))
-	if err := h.svc.MarkNoteRead(c.Request.Context(), tenantID, userID, noteID); err != nil {
+	if err := h.noteSvc.MarkNoteRead(c.Request.Context(), tenantID, userID, noteID); err != nil {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
 	}
@@ -206,7 +208,7 @@ func (h *Handler) notifyChat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
 	}
-	if err := h.svc.NotifyChat(c.Request.Context(), tenantID, userID, authToken, req); err != nil {
+	if err := h.chatSvc.NotifyChat(c.Request.Context(), tenantID, userID, authToken, req); err != nil {
 		c.JSON(http.StatusBadRequest, httpresp.NewErrorResponse(err.Error()))
 		return
 	}

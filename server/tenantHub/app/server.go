@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	commonauth "msg_server/server/common/auth"
-	sessionservice "msg_server/server/session/service"
 	tenantapi "msg_server/server/tenantHub/api"
 	tenantHub "msg_server/server/tenantHub/service"
 )
@@ -25,7 +24,7 @@ type Server struct {
 }
 
 func NewServer(cfg Config) (*Server, error) {
-	dbClient := sessionservice.NewDBManClient(cfg.DBManEndpoints...)
+	dbClient := tenantHub.NewDBManClient(cfg.DBManEndpoints...)
 	tenantSvc := tenantHub.NewService(dbClient)
 	auth := commonauth.NewService(cfg.JWTSecret, cfg.JWTTTLMinutes)
 	h := tenantapi.NewHandler(tenantSvc, auth)
