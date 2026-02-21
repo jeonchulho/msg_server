@@ -44,6 +44,17 @@ on:
         description: k6 duration for load-test job (e.g. 10m)
         required: false
         default: "10m"
+      load_test_stage:
+        description: Stage preset for load-test job (overrides k6_vus/k6_duration when set)
+        required: false
+        default: custom
+        type: choice
+        options:
+          - custom
+          - A
+          - B
+          - C
+          - D
 
 jobs:
   smoke:
@@ -443,6 +454,30 @@ jobs:
           TENANTHUB_BASE_URL: http://localhost:8092
           REPORT_DIR: ./loadtest_reports
         run: |
+          stage="${{ github.event.inputs.load_test_stage || 'custom' }}"
+          case "$stage" in
+            A)
+              export K6_VUS="300"
+              export K6_DURATION="5m"
+              ;;
+            B)
+              export K6_VUS="500"
+              export K6_DURATION="10m"
+              ;;
+            C)
+              export K6_VUS="1000"
+              export K6_DURATION="15m"
+              ;;
+            D)
+              export K6_VUS="2000"
+              export K6_DURATION="20m"
+              ;;
+            *)
+              ;;
+          esac
+
+          echo "[load-test] stage=$stage K6_VUS=$K6_VUS K6_DURATION=$K6_DURATION profile=${{ github.event.inputs.load_test_profile || 'msa' }}"
+
           if [[ "${{ github.event.inputs.load_test_profile || 'msa' }}" == "chat" ]]; then
             make load-chat-report
           else
