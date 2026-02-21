@@ -12,7 +12,7 @@ import (
 	commonauth "msg_server/server/common/auth"
 	"msg_server/server/common/middleware"
 	"msg_server/server/common/transport/httpresp"
-	orgHub "msg_server/server/orgHub"
+	orgHub "msg_server/server/orgHub/service"
 )
 
 type Handler struct {

@@ -9,7 +9,7 @@ import (
 	commonauth "msg_server/server/common/auth"
 	"msg_server/server/common/middleware"
 	"msg_server/server/common/transport/httpresp"
-	tenantHub "msg_server/server/tenantHub"
+	tenantHub "msg_server/server/tenantHub/service"
 )
 
 type Handler struct {

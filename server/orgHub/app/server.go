@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	commonauth "msg_server/server/common/auth"
-	orgHub "msg_server/server/orgHub"
 	orgapi "msg_server/server/orgHub/api"
+	orgHub "msg_server/server/orgHub/service"
 	sessionservice "msg_server/server/session/service"
 )
 

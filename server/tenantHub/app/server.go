@@ -9,8 +9,8 @@ import (
 
 	commonauth "msg_server/server/common/auth"
 	sessionservice "msg_server/server/session/service"
-	tenantHub "msg_server/server/tenantHub"
 	tenantapi "msg_server/server/tenantHub/api"
+	tenantHub "msg_server/server/tenantHub/service"
 )
 
 type Config struct {
