@@ -111,6 +111,53 @@ REPORT_DIR=./loadtest_reports \
 make load-msa-report
 ```
 
+## 실행 결과 해석 템플릿 (`load-msa-baseline`)
+
+아래 템플릿을 테스트 실행 후 그대로 채워서 PR/운영 노트에 붙이면 됩니다.
+
+```markdown
+### MSA Baseline 결과 (yyyy-mm-dd hh:mm UTC)
+
+- 실행 명령:
+  - `K6_VUS=___ K6_DURATION=___ make load-msa-report`
+- 환경:
+  - chat=___, session=___, orghub=___, tenanthub=___
+  - tenant_id=___
+
+#### 핵심 지표
+- requests(count): ___
+- failed_rate: ___
+- http p95 / p99 (ms): ___ / ___
+- chat p95 (ms): ___
+- session p95 (ms): ___
+- tenanthub p95 (ms): ___
+
+#### 판정
+- [ ] PASS
+- [ ] WARN
+- [ ] FAIL
+
+#### 판정 근거
+- 실패율 기준(`http_req_failed < 2%`): 충족/미충족
+- 응답시간 기준(`http p95 < 700ms`, `http p99 < 1500ms`): 충족/미충족
+- 서비스별 기준(`chat p95 < 500ms`, `session p95 < 500ms`, `tenanthub p95 < 600ms`): 충족/미충족
+
+#### 액션 아이템
+- 원인 후보:
+  - dbman 지연 / DB lock / Redis 지연 / 특정 API 병목 / 네트워크
+- 다음 조치:
+  - [ ] 쿼리/인덱스 점검
+  - [ ] DBMan endpoint 확장
+  - [ ] HPA 임계치 조정
+  - [ ] 재실행(동일 조건)
+  - [ ] 재실행(상향 부하)
+```
+
+판정 권장 기준:
+- **PASS**: 모든 threshold 충족, 에러율 안정적
+- **WARN**: threshold 1개 미충족 또는 변동성 큼(스파이크 다수)
+- **FAIL**: 실패율/핵심 latency 기준 다수 미충족, 또는 재현성 있는 오류 발생
+
 ## 장애 주입 체크
 
 - `chat` 인스턴스 1개 강제 종료 시 에러율 급등/회복 시간
