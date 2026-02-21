@@ -60,6 +60,12 @@ make install-k6
 make load-chat-baseline
 ```
 
+MSA 통합 기준선 실행(orghub+chat+session+tenanthub):
+
+```bash
+make load-msa-baseline
+```
+
 고부하 예시:
 
 ```bash
@@ -79,6 +85,30 @@ K6_VUS=5000 \
 K6_DURATION=20m \
 REPORT_DIR=./loadtest_reports \
 make load-chat-report
+```
+
+MSA 통합 고부하 예시:
+
+```bash
+CHAT_BASE_URL=http://localhost:8080 \
+SESSION_BASE_URL=http://localhost:8090 \
+ORGHUB_BASE_URL=http://localhost:8091 \
+TENANTHUB_BASE_URL=http://localhost:8092 \
+TENANT_ID=default \
+SMOKE_EMAIL=admin@example.com \
+SMOKE_PASSWORD=pass1234 \
+K6_VUS=5000 \
+K6_DURATION=20m \
+make load-msa
+```
+
+MSA 통합 리포트 저장(요약 JSON + 콘솔 로그):
+
+```bash
+K6_VUS=5000 \
+K6_DURATION=20m \
+REPORT_DIR=./loadtest_reports \
+make load-msa-report
 ```
 
 ## 장애 주입 체크
