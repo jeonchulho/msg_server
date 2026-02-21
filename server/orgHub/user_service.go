@@ -1,4 +1,4 @@
-package service
+package orghub
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"msg_server/server/chat/domain"
 )
 
-type userDBManClient interface {
+type DBManClient interface {
 	CreateOrgUnit(ctx context.Context, tenantID string, parentID *string, name string) (string, error)
 	ListOrgUnits(ctx context.Context, tenantID string) ([]domain.OrgUnit, error)
 	CreateUser(ctx context.Context, tenantID string, user domain.User) (string, error)
@@ -25,54 +25,54 @@ type userDBManClient interface {
 	ListAliasAudit(ctx context.Context, tenantID, userID string, limit int, from, to *time.Time, action string, cursorCreatedAt *time.Time, cursorID *string) ([]domain.AliasAudit, error)
 }
 
-type UserService struct {
-	dbman userDBManClient
+type Service struct {
+	dbman DBManClient
 }
 
-func NewUserService(dbman userDBManClient) *UserService {
-	return &UserService{dbman: dbman}
+func NewService(dbman DBManClient) *Service {
+	return &Service{dbman: dbman}
 }
 
-func (s *UserService) CreateOrgUnit(ctx context.Context, tenantID string, parentID *string, name string) (string, error) {
+func (s *Service) CreateOrgUnit(ctx context.Context, tenantID string, parentID *string, name string) (string, error) {
 	return s.dbman.CreateOrgUnit(ctx, tenantID, parentID, name)
 }
 
-func (s *UserService) ListOrgUnits(ctx context.Context, tenantID string) ([]domain.OrgUnit, error) {
+func (s *Service) ListOrgUnits(ctx context.Context, tenantID string) ([]domain.OrgUnit, error) {
 	return s.dbman.ListOrgUnits(ctx, tenantID)
 }
 
-func (s *UserService) CreateUser(ctx context.Context, tenantID string, user domain.User) (string, error) {
+func (s *Service) CreateUser(ctx context.Context, tenantID string, user domain.User) (string, error) {
 	return s.dbman.CreateUser(ctx, tenantID, user)
 }
 
-func (s *UserService) UpdateStatus(ctx context.Context, tenantID, userID string, status domain.UserStatus, note string) error {
+func (s *Service) UpdateStatus(ctx context.Context, tenantID, userID string, status domain.UserStatus, note string) error {
 	return s.dbman.UpdateUserStatus(ctx, tenantID, userID, status, note)
 }
 
-func (s *UserService) SearchUsers(ctx context.Context, tenantID, q string, limit int) ([]domain.User, error) {
+func (s *Service) SearchUsers(ctx context.Context, tenantID, q string, limit int) ([]domain.User, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 	return s.dbman.SearchUsers(ctx, tenantID, q, limit)
 }
 
-func (s *UserService) Authenticate(ctx context.Context, tenantID, email, password string) (domain.User, error) {
+func (s *Service) Authenticate(ctx context.Context, tenantID, email, password string) (domain.User, error) {
 	return s.dbman.AuthenticateUser(ctx, tenantID, email, password)
 }
 
-func (s *UserService) ListAliases(ctx context.Context, tenantID, userID string) ([]string, error) {
+func (s *Service) ListAliases(ctx context.Context, tenantID, userID string) ([]string, error) {
 	return s.dbman.ListAliases(ctx, tenantID, userID)
 }
 
-func (s *UserService) AddAlias(ctx context.Context, tenantID, userID string, alias, ip, userAgent string) error {
+func (s *Service) AddAlias(ctx context.Context, tenantID, userID string, alias, ip, userAgent string) error {
 	return s.dbman.AddAlias(ctx, tenantID, userID, alias, ip, userAgent)
 }
 
-func (s *UserService) DeleteAlias(ctx context.Context, tenantID, userID string, alias, ip, userAgent string) error {
+func (s *Service) DeleteAlias(ctx context.Context, tenantID, userID string, alias, ip, userAgent string) error {
 	return s.dbman.DeleteAlias(ctx, tenantID, userID, alias, ip, userAgent)
 }
 
-func (s *UserService) ListAliasAudit(ctx context.Context, tenantID, userID string, limit int, from, to *time.Time, action, cursor string) ([]domain.AliasAudit, string, error) {
+func (s *Service) ListAliasAudit(ctx context.Context, tenantID, userID string, limit int, from, to *time.Time, action, cursor string) ([]domain.AliasAudit, string, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}

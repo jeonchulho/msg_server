@@ -1,4 +1,4 @@
-package service
+package tenanthub
 
 import (
 	"context"
@@ -6,36 +6,36 @@ import (
 	"msg_server/server/chat/domain"
 )
 
-type tenantDBManClient interface {
+type DBManClient interface {
 	ListTenants(ctx context.Context) ([]domain.Tenant, error)
 	CreateTenant(ctx context.Context, item domain.Tenant) (domain.Tenant, error)
 	UpdateTenantConfig(ctx context.Context, item domain.Tenant) (domain.Tenant, error)
 }
 
-type tenantInvalidator interface {
+type Invalidator interface {
 	InvalidateTenant(tenantID string)
 }
 
-type TenantService struct {
-	dbman   tenantDBManClient
-	routers []tenantInvalidator
+type Service struct {
+	dbman   DBManClient
+	routers []Invalidator
 }
 
-func NewTenantService(dbman tenantDBManClient, invalidators ...tenantInvalidator) *TenantService {
-	routers := make([]tenantInvalidator, 0, len(invalidators))
+func NewService(dbman DBManClient, invalidators ...Invalidator) *Service {
+	routers := make([]Invalidator, 0, len(invalidators))
 	for _, inv := range invalidators {
 		if inv != nil {
 			routers = append(routers, inv)
 		}
 	}
-	return &TenantService{dbman: dbman, routers: routers}
+	return &Service{dbman: dbman, routers: routers}
 }
 
-func (s *TenantService) List(ctx context.Context) ([]domain.Tenant, error) {
+func (s *Service) List(ctx context.Context) ([]domain.Tenant, error) {
 	return s.dbman.ListTenants(ctx)
 }
 
-func (s *TenantService) Create(ctx context.Context, item domain.Tenant) (domain.Tenant, error) {
+func (s *Service) Create(ctx context.Context, item domain.Tenant) (domain.Tenant, error) {
 	created, err := s.dbman.CreateTenant(ctx, item)
 	if err != nil {
 		return domain.Tenant{}, err
@@ -44,7 +44,7 @@ func (s *TenantService) Create(ctx context.Context, item domain.Tenant) (domain.
 	return created, nil
 }
 
-func (s *TenantService) UpdateConfig(ctx context.Context, item domain.Tenant) (domain.Tenant, error) {
+func (s *Service) UpdateConfig(ctx context.Context, item domain.Tenant) (domain.Tenant, error) {
 	updated, err := s.dbman.UpdateTenantConfig(ctx, item)
 	if err != nil {
 		return domain.Tenant{}, err
@@ -53,7 +53,7 @@ func (s *TenantService) UpdateConfig(ctx context.Context, item domain.Tenant) (d
 	return updated, nil
 }
 
-func (s *TenantService) invalidateTenant(tenantID string) {
+func (s *Service) invalidateTenant(tenantID string) {
 	for _, inv := range s.routers {
 		inv.InvalidateTenant(tenantID)
 	}

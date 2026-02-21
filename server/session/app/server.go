@@ -10,8 +10,10 @@ import (
 
 	commonauth "msg_server/server/common/auth"
 	"msg_server/server/common/infra/cache"
+	orgHub "msg_server/server/orgHub"
 	sessionapi "msg_server/server/session/api"
 	sessionservice "msg_server/server/session/service"
+	tenantHub "msg_server/server/tenantHub"
 )
 
 type Config struct {
@@ -38,8 +40,8 @@ func NewServer(cfg Config) (*Server, error) {
 	}
 
 	dbClient := sessionservice.NewDBManClient(cfg.DBManEndpoints...)
-	userSvc := sessionservice.NewUserService(dbClient)
-	tenantSvc := sessionservice.NewTenantService(dbClient)
+	userSvc := orgHub.NewService(dbClient)
+	tenantSvc := tenantHub.NewService(dbClient)
 	hub := sessionservice.NewHub()
 	hub.UseRedis(redisClient)
 	_ = hub.StartRedisSubscriber(context.Background())

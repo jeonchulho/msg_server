@@ -13,19 +13,21 @@ import (
 	commonauth "msg_server/server/common/auth"
 	"msg_server/server/common/middleware"
 	"msg_server/server/common/transport/httpresp"
+	orgHub "msg_server/server/orgHub"
 	sessiondomain "msg_server/server/session/domain"
 	sessionservice "msg_server/server/session/service"
+	tenantHub "msg_server/server/tenantHub"
 )
 
 type Handler struct {
-	users  *sessionservice.UserService
-	tenant *sessionservice.TenantService
+	users  *orgHub.Service
+	tenant *tenantHub.Service
 	svc    *sessionservice.Service
 	auth   *commonauth.Service
 	hub    *sessionservice.Hub
 }
 
-func NewHandler(users *sessionservice.UserService, tenant *sessionservice.TenantService, svc *sessionservice.Service, auth *commonauth.Service, hub *sessionservice.Hub) *Handler {
+func NewHandler(users *orgHub.Service, tenant *tenantHub.Service, svc *sessionservice.Service, auth *commonauth.Service, hub *sessionservice.Hub) *Handler {
 	return &Handler{users: users, tenant: tenant, svc: svc, auth: auth, hub: hub}
 }
 
