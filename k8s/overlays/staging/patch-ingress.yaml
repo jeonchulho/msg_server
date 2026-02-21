@@ -25,6 +25,26 @@ spec:
                 name: session
                 port:
                   number: 8090
+    - host: staging-orghub.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orghub
+                port:
+                  number: 8091
+    - host: staging-tenanthub.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tenanthub
+                port:
+                  number: 8092
     - host: staging-fileman.example.com
       http:
         paths:

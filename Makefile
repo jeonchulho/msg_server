@@ -27,6 +27,12 @@ run-chat:
 run-session:
 	go run ./cmd/session
 
+run-orghub:
+	go run ./cmd/orghub
+
+run-tenanthub:
+	go run ./cmd/tenanthub
+
 run-fileman:
 	go run ./cmd/fileman
 

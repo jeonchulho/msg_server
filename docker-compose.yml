@@ -159,6 +159,42 @@ services:
     volumes:
       - ./deploy/haproxy/dbman-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
 
+  orghub:
+    image: golang:1.23
+    working_dir: /app
+    command: sh -c "go run ./cmd/orghub"
+    environment:
+      ORGHUB_PORT: "8091"
+      DBMAN_ENDPOINTS: http://dbman-lb:8082
+      DBMAN_ENDPOINT: http://dbman-lb:8082
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-1440}
+    depends_on:
+      dbman-lb:
+        condition: service_started
+    volumes:
+      - ./:/app
+    ports:
+      - "8091:8091"
+
+  tenanthub:
+    image: golang:1.23
+    working_dir: /app
+    command: sh -c "go run ./cmd/tenanthub"
+    environment:
+      TENANTHUB_PORT: "8092"
+      DBMAN_ENDPOINTS: http://dbman-lb:8082
+      DBMAN_ENDPOINT: http://dbman-lb:8082
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-1440}
+    depends_on:
+      dbman-lb:
+        condition: service_started
+    volumes:
+      - ./:/app
+    ports:
+      - "8092:8092"
+
 volumes:
   pg_data:
   minio_data:

@@ -7,11 +7,11 @@
 - `namespace.yaml`: 네임스페이스(`msg`)
 - `configmap.yaml`: 비민감 환경변수
 - `secret.example.yaml`: 시크릿 예시(실운영에서는 값 교체 필요)
-- `chat.yaml`, `session.yaml`, `fileman.yaml`, `dbman.yaml`, `vectorman.yaml`
+- `chat.yaml`, `orghub.yaml`, `tenanthub.yaml`, `session.yaml`, `fileman.yaml`, `dbman.yaml`, `vectorman.yaml`
   - 각 서비스 Deployment + Service
 - `pdb.yaml`
   - `dbman` PodDisruptionBudget (`minAvailable: 1`)
-- `ingress.yaml`: chat/session/fileman 라우팅 예시
+- `ingress.yaml`: chat/orghub/tenanthub/session/fileman 라우팅 예시
 - `hpa.yaml`: 주요 서비스 HPA 예시
 - `kustomization.yaml`: 베이스 리소스 묶음
 - `base/`: 오버레이가 참조하는 베이스 kustomization 디렉터리

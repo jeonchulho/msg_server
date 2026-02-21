@@ -6,6 +6,8 @@ resources:
   - configmap.yaml
   - secret.example.yaml
   - chat.yaml
+  - orghub.yaml
+  - tenanthub.yaml
   - session.yaml
   - fileman.yaml
   - dbman.yaml

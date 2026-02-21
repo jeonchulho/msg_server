@@ -1,0 +1,10 @@
+.git
+.github
+.vscode
+.idea
+*.log
+logs/
+loadtest_reports/
+.tmp/
+tmp/
+node_modules/

@@ -6,44 +6,29 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 
 	commonauth "msg_server/server/common/auth"
-	"msg_server/server/common/infra/cache"
-	sessionapi "msg_server/server/session/api"
+	orgHub "msg_server/server/orgHub"
+	orgapi "msg_server/server/orgHub/api"
 	sessionservice "msg_server/server/session/service"
 )
 
 type Config struct {
 	Port           string
-	RedisAddr      string
 	JWTSecret      string
 	JWTTTLMinutes  int
-	DBManEndpoint  string
 	DBManEndpoints []string
 }
 
 type Server struct {
 	HTTPServer *http.Server
-	Redis      *redis.Client
-	hub        *sessionservice.Hub
 }
 
 func NewServer(cfg Config) (*Server, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	redisClient := cache.NewClient(cfg.RedisAddr)
-	if err := cache.Ping(ctx, redisClient); err != nil {
-		return nil, err
-	}
-
 	dbClient := sessionservice.NewDBManClient(cfg.DBManEndpoints...)
-	hub := sessionservice.NewHub()
-	hub.UseRedis(redisClient)
-	_ = hub.StartRedisSubscriber(context.Background())
-	svc := sessionservice.NewService(dbClient, hub)
+	userSvc := orgHub.NewService(dbClient)
 	auth := commonauth.NewService(cfg.JWTSecret, cfg.JWTTTLMinutes)
-	h := sessionapi.NewHandler(svc, auth, hub)
+	h := orgapi.NewHandler(userSvc, auth)
 
 	r := gin.Default()
 	h.RegisterRoutes(r)
@@ -56,15 +41,9 @@ func NewServer(cfg Config) (*Server, error) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return &Server{HTTPServer: httpServer, Redis: redisClient, hub: hub}, nil
+	return &Server{HTTPServer: httpServer}, nil
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s.hub != nil {
-		s.hub.StopRedisSubscriber()
-	}
-	if s.Redis != nil {
-		_ = s.Redis.Close()
-	}
 	return s.HTTPServer.Shutdown(ctx)
 }

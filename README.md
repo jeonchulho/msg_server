@@ -28,7 +28,9 @@ Kubernetes 환경별 배포 예시:
 - `dbman`: DB DML/조회 책임의 단일 진입점
 	- chat/user/tenant/file + session(device_session/note/notify) 관련 DB 처리 담당
 - `chat`: 채팅 API/실시간 처리 중심, DB 조회/저장은 `dbman` API 경유
-- `session`: 인증/사용자/테넌트 + 세션/노트/알림 API 제공, 영속 처리는 `dbman` API 경유
+- `orgHub`: 사용자/조직/인증 API 제공, 영속 처리는 `dbman` API 경유
+- `tenantHub`: 테넌트 관리 API 제공, 영속 처리는 `dbman` API 경유
+- `session`: 세션/노트/알림 API 제공, 영속 처리는 `dbman` API 경유
 - `fileman`: MinIO 업로드/다운로드/썸네일 처리 담당, 파일 메타 저장 및 tenant MinIO 메타 조회는 `dbman` API 경유
 
 ## 구현 범위
@@ -72,6 +74,8 @@ cp .env.example .env
 - 로거 파일 경로는 `LOG_FILE_PATH`(기본: `./logs/msg_server.log`)로 설정합니다.
 - 로거 파일 최대 크기는 `LOG_MAX_SIZE_MB`(기본: `20`)로 설정하며, 초과 시 `로그명_일시_인덱스.log`로 로테이션합니다.
 - `SESSION_PORT` 기본값은 `8090`입니다. (`SESSIOND_PORT`는 하위 호환)
+- `ORGHUB_PORT` 기본값은 `8091`입니다.
+- `TENANTHUB_PORT` 기본값은 `8092`입니다.
 - `FILEMAN_PORT` 기본값은 `8081`입니다.
 - `DBMAN_PORT` 기본값은 `8082`입니다.
 - `VECTORMAN_PORT` 기본값은 `8083`입니다.
@@ -124,6 +128,18 @@ make run-chat
 make run-session
 ```
 
+사용자/조직/인증 전용 서버 실행(별도 프로세스):
+
+```bash
+make run-orghub
+```
+
+테넌트 관리 전용 서버 실행(별도 프로세스):
+
+```bash
+make run-tenanthub
+```
+
 파일 전용 서버 실행(별도 프로세스):
 
 ```bash
@@ -152,7 +168,7 @@ make run-vectorman
 
 주요 기능:
 - 테넌트+사용자 기준 디바이스 세션 로그인/관리
-- 사용자 상태 변경 및 WebSocket 실시간 알림
+- 사용자 상태 WebSocket 실시간 알림
 - Note 전송/수신/알림 (`to/cc/bcc`, 멀티파일 메타 포함)
 - 채팅방 메시지 수신 알림 이벤트 전송
 
@@ -168,6 +184,35 @@ make run-vectorman
 	- `POST /api/v1/notes/:id/read`
 	- `POST /api/v1/chat/notify`
 
+## orgHub (별도 실행 파일)
+
+실행 파일: `cmd/orghub`
+
+주요 엔드포인트:
+- Public
+	- `GET /health`
+	- `POST /api/v1/auth/login`
+- Auth(Bearer JWT)
+	- `POST /api/v1/org-units`
+	- `GET /api/v1/org-units`
+	- `POST /api/v1/users`
+	- `PATCH /api/v1/users/:id/status`
+	- `GET /api/v1/users/search`
+	- `GET /api/v1/users/me/aliases`
+	- `POST /api/v1/users/me/aliases`
+	- `DELETE /api/v1/users/me/aliases`
+	- `GET /api/v1/users/me/aliases/audit`
+
+## tenantHub (별도 실행 파일)
+
+실행 파일: `cmd/tenanthub`
+
+주요 엔드포인트(Auth/Bearer JWT):
+- `GET /health`
+- `GET /api/v1/tenants`
+- `POST /api/v1/tenants`
+- `PATCH /api/v1/tenants/:id`
+
 ## 인증(JWT) 사용
 
 1) 관리자/매니저 사용자 생성
@@ -177,7 +222,7 @@ make run-vectorman
 2) 로그인
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
+curl -X POST http://localhost:8091/api/v1/auth/login \
 	-H "Content-Type: application/json" \
 	-d '{"tenant_id":"default","email":"admin@example.com","password":"pass1234"}'
 ```
@@ -221,7 +266,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 1) 로그인 (Public)
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
+curl -X POST http://localhost:8091/api/v1/auth/login \
 	-H "Content-Type: application/json" \
 	-d '{"tenant_id":"default","email":"admin@example.com","password":"pass1234"}'
 ```
@@ -628,6 +673,14 @@ GitHub Actions 스모크 CI:
 - 실행 시 비밀번호 소스를 로그로 안내하고, 시크릿이 없으면 즉시 실패합니다.
 - `pull_request`, `push(main)`, `workflow_dispatch` 모든 이벤트에서 동일하게 시크릿 필수 정책을 사용합니다.
 
+GitHub Actions 이미지 퍼블리시 CI:
+- 워크플로우: `.github/workflows/publish-images.yml`
+- 트리거: `push(main)`, `workflow_dispatch`
+- 대상 이미지(GHCR): `chat`, `session`, `orghub`, `tenanthub`, `fileman`, `dbman`, `vectorman`
+- 태그 규칙:
+	- `ghcr.io/<owner>/<repo>:<service>-latest`
+	- `ghcr.io/<owner>/<repo>:<service>-<git_sha>`
+
 workflow_dispatch 빠른 실행 체크리스트:
 1. `Actions` → `smoke` → `Run workflow`에서 `tenant_id`, `admin_email`, `base_url`을 입력합니다.
 2. 필요 시 `run_dbman_failover_smoke=true`로 선택 실행합니다.
@@ -701,7 +754,7 @@ GitHub Actions 시크릿 체크리스트:
 
 ```bash
 # 1) 로그인 401 즉시 확인
-curl -s -o /tmp/login.json -w "%{http_code}\n" -X POST http://localhost:8080/api/v1/auth/login -H "Content-Type: application/json" -d "{\"tenant_id\":\"${SMOKE_TENANT_ID:-default}\",\"email\":\"admin@example.com\",\"password\":\"$SMOKE_ADMIN_PASSWORD\"}" && cat /tmp/login.json
+curl -s -o /tmp/login.json -w "%{http_code}\n" -X POST http://localhost:8091/api/v1/auth/login -H "Content-Type: application/json" -d "{\"tenant_id\":\"${SMOKE_TENANT_ID:-default}\",\"email\":\"admin@example.com\",\"password\":\"$SMOKE_ADMIN_PASSWORD\"}" && cat /tmp/login.json
 
 # 2) 시드 관리자 계정 존재/권한 확인
 psql "$POSTGRES_DSN" -c "select user_id,email,role,status,updated_at from users where email='admin@example.com';"

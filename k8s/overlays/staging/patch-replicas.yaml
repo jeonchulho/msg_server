@@ -17,6 +17,22 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: orghub
+  namespace: msg
+spec:
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenanthub
+  namespace: msg
+spec:
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: fileman
   namespace: msg
 spec:
