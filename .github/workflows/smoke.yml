@@ -24,12 +24,12 @@ on:
         default: "false"
         type: boolean
       run_load_test:
-        description: Run optional k6 load-test job
+        description: Run k6 load-test job
         required: false
         default: "false"
         type: boolean
       load_test_profile:
-        description: Load-test profile (chat or msa)
+        description: Profile (chat=chat만, msa=orghub+chat+session+tenanthub)
         required: false
         default: msa
         type: choice
@@ -37,15 +37,15 @@ on:
           - chat
           - msa
       k6_vus:
-        description: k6 VUs for load-test job
+        description: k6 VUs (load_test_stage=custom일 때만 사용)
         required: false
         default: "500"
       k6_duration:
-        description: k6 duration for load-test job (e.g. 10m)
+        description: k6 duration (load_test_stage=custom일 때만 사용, 예: 10m)
         required: false
         default: "10m"
       load_test_stage:
-        description: Stage preset for load-test job (overrides k6_vus/k6_duration when set)
+        description: Stage preset (A/B/C/D 선택 시 k6_vus,k6_duration 자동 적용)
         required: false
         default: custom
         type: choice
