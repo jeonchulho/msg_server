@@ -111,6 +111,11 @@ REPORT_DIR=./loadtest_reports \
 make load-msa-report
 ```
 
+- 산출물:
+  - `k6_msa_hotpath_summary_<UTC>.json`
+  - `k6_msa_hotpath_summary_<UTC>.md` (CI 아티팩트/요약 첨부용)
+  - `k6_msa_hotpath_console_<UTC>.log`
+
 ## 실행 결과 해석 템플릿 (`load-msa-baseline`)
 
 아래 템플릿을 테스트 실행 후 그대로 채워서 PR/운영 노트에 붙이면 됩니다.

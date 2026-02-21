@@ -781,11 +781,11 @@ docker compose ps
 - k6 기준선 부하 테스트: `make load-chat-baseline`
 - k6 커스텀 부하 테스트: `K6_VUS=2000 K6_DURATION=15m BASE_URL=http://localhost:8080 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' make load-chat`
 - k6 리포트 저장+요약: `K6_VUS=2000 K6_DURATION=15m REPORT_DIR=./loadtest_reports make load-chat-report`
-  - 생성 파일: `k6_chat_hotpath_summary_<UTC>.json`, `k6_chat_hotpath_console_<UTC>.log`
+	- 생성 파일: `k6_chat_hotpath_summary_<UTC>.json`, `k6_chat_hotpath_summary_<UTC>.md`, `k6_chat_hotpath_console_<UTC>.log`
 - k6 MSA 통합 기준선 테스트(orghub+chat+session+tenanthub): `make load-msa-baseline`
 - k6 MSA 통합 커스텀 테스트: `K6_VUS=1000 K6_DURATION=15m CHAT_BASE_URL=http://localhost:8080 SESSION_BASE_URL=http://localhost:8090 ORGHUB_BASE_URL=http://localhost:8091 TENANTHUB_BASE_URL=http://localhost:8092 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' make load-msa`
 - k6 MSA 통합 리포트 저장+요약: `K6_VUS=1000 K6_DURATION=15m REPORT_DIR=./loadtest_reports make load-msa-report`
-	- 생성 파일: `k6_msa_hotpath_summary_<UTC>.json`, `k6_msa_hotpath_console_<UTC>.log`
+	- 생성 파일: `k6_msa_hotpath_summary_<UTC>.json`, `k6_msa_hotpath_summary_<UTC>.md`, `k6_msa_hotpath_console_<UTC>.log`
 - 리포트 파일 저장: `DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh`
 - 옵션 환경변수:
 	- `BASE_URL` (기본: `http://localhost:8080`)
