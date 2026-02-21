@@ -786,6 +786,20 @@ docker compose ps
 - k6 MSA 통합 커스텀 테스트: `K6_VUS=1000 K6_DURATION=15m CHAT_BASE_URL=http://localhost:8080 SESSION_BASE_URL=http://localhost:8090 ORGHUB_BASE_URL=http://localhost:8091 TENANTHUB_BASE_URL=http://localhost:8092 TENANT_ID=default SMOKE_EMAIL=admin@example.com SMOKE_PASSWORD='<pw>' make load-msa`
 - k6 MSA 통합 리포트 저장+요약: `K6_VUS=1000 K6_DURATION=15m REPORT_DIR=./loadtest_reports make load-msa-report`
 	- 생성 파일: `k6_msa_hotpath_summary_<UTC>.json`, `k6_msa_hotpath_summary_<UTC>.md`, `k6_msa_hotpath_console_<UTC>.log`
+
+GitHub Actions(`smoke` workflow_dispatch) `run_load_test=true` 실행 시 권장 입력 조합:
+
+| 목적 | load_test_profile | load_test_stage | 비고 |
+|---|---|---|---|
+| 빠른 확인(스모크) | msa | A | 약 `300 VUs / 5m` |
+| 기준선 측정 | msa | B | 약 `500 VUs / 10m` |
+| 중간 부하 | msa | C | 약 `1000 VUs / 15m` |
+| 고부하 진입 | msa | D | 약 `2000 VUs / 20m` |
+| 수동 조정 | chat 또는 msa | custom | `k6_vus`, `k6_duration` 직접 입력 |
+
+참고:
+- `load_test_stage`가 `A/B/C/D`이면 stage 프리셋이 `k6_vus`, `k6_duration` 값을 덮어씁니다.
+- `load_test_stage=custom`일 때만 입력한 `k6_vus`, `k6_duration`이 그대로 사용됩니다.
 - 리포트 파일 저장: `DIAG_REPORT=./diag_report.txt bash ./scripts/quick_diag.sh`
 - 옵션 환경변수:
 	- `BASE_URL` (기본: `http://localhost:8080`)
